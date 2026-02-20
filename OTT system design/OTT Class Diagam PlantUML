@@ -1,0 +1,128 @@
+https://www.plantuml.com/plantuml/umla/bLHDJnin4BtlhnZbGg02mHMr4X6Wib9940lgsR4d6wjUUsNFWhOV_xtU7JauAGbgBZiUZz-yUNdsLI3XgMjCON15G0wyhjS4IdkKf9qjmWzjM-550zA846P4NYyxmb8wM-cV2ET5SGHVtll5_BNp2Cy1FTouHcYxjxGOqRdqLm7mgOjHgOO8uq4p16siU7L-J4RUr8KXaXu5ePfHyIUXF7YtqWOPgEK5OrdHuF0rmjQTgCSuVhvwrxLlvwjk6QJNxI00WuGimqXjX7Zgsn5X5F56qBX0grB893DUec_G4Z0lNZ2QQ5ndAKlVEuNPidfltCF2MuhdFfHTB0Dv8Od_NJwM64fUC4FIP70856wK69OrMZ_cFHeK0TFiNf2sTGOpYhMHujwzQEGsgXjgdStqHwyny2uv4gQAoCvcIdA2Ay8OpxjcYVwjuhRLmIda4kG5r-GzX_X5AtJFtXmKb9qvawHVDFKVsVYx8Bc-qu6Sxvb1JDEOHVNWWawzfMjQWuHgfoPtyoD6gLuP9bUr6Opn7vQOLTNYkfmzbOjvjN-0etHx0WYFu5ujAbZsFF_Kw1NANXe4XIrQXLRsnyMuDxcOmCdfAKnE9fiBU0d3W6dUYBrrizOi44pbshc0G341A-U1DxGK1Xgdq6GTXWRdPsUnnnRKPG8hYZpFHvXJkdoN44LrKWlcbAXcbVc_jrj-jBqhHKkTnm2jTtNyCdzX-yrDcZQ3qmF4DBiGmt6HOyIMt3aII8V-QReOnn46b0wYMUgw6xTWjO7L4YIVta6FQbsa1kbMn0QE4Ssx2h3bTcXmyaEwXonOpkzk7ykdsVpw5gPbTJextc_41FxvT-msFXTRgJJAmKTmSV-mgCh1yJ3zjh7kJMRTlUtv3SfTdHwTRLDpCg_BHCuBhsBFhZ5_0G00
+
+
+
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+
+' =====================
+' Core User Domain
+' =====================
+
+class User {
+  +userId
+  +email
+  +password
+  +status
+  +createdAt
+}
+
+class Profile {
+  +profileId
+  +name
+  +language
+  +ageGroup
+}
+
+class Subscription {
+  +subscriptionId
+  +planType
+  +startDate
+  +endDate
+  +status
+}
+
+class Payment {
+  +paymentId
+  +amount
+  +paymentMode
+  +paymentStatus
+  +createdAt
+}
+
+' =====================
+' Content Domain
+' =====================
+
+abstract class Content {
+  +contentId
+  +title
+  +description
+  +genre
+  +releaseDate
+  +rating
+  +contentType
+}
+
+class Movie {
+  +duration
+}
+
+class Series {
+  +totalSeasons
+}
+
+class Season {
+  +seasonNumber
+}
+
+class Episode {
+  +episodeNumber
+  +duration
+  +videoUrl
+}
+
+' =====================
+' User Activity
+' =====================
+
+class WatchHistory {
+  +lastWatchedPosition
+  +completed
+  +lastWatchedAt
+}
+
+class Review {
+  +rating
+  +comment
+  +createdAt
+}
+
+' =====================
+' ASSOCIATIONS
+' =====================
+
+' Profiles are owned by User (lifecycle dependency)
+User "1" *-- "*" Profile : composition
+
+' Subscription history (choose this for historical model)
+User "1" -- "0..*" Subscription : history
+
+Subscription "1" -- "*" Payment : association
+
+Profile "1" -- "*" WatchHistory : association
+
+' WatchHistory captures progress for any Content (movies or episodes)
+WatchHistory "*" -- "1" Content : association
+
+' Optional disambiguation for episodic content
+WatchHistory "0..1" -- "1" Episode : optional
+
+Profile "1" -- "*" Review : association
+Review "*" -- "1" Content : association
+
+' =====================
+' INHERITANCE (IS-A)
+' =====================
+
+Content <|-- Movie
+Content <|-- Episode
+
+' =====================
+' COMPOSITION (Lifecycle Dependency)
+' =====================
+
+Series "1" *-- "*" Season : composition
+Season "1" *-- "*" Episode : composition
+@enduml

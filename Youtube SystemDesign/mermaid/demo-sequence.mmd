@@ -1,0 +1,33 @@
+sequenceDiagram
+  autonumber
+  participant Client
+  participant APIGW as API Gateway
+  participant Upload as Upload Service
+  participant Store as Object Storage
+  participant Queue as Event Queue
+  participant Worker as Processing Worker
+  participant Meta as Metadata Service
+  participant CDN
+
+  Client->>APIGW: Init Upload (auth)
+  APIGW->>Upload: Create Session
+  Upload-->>Client: uploadId and presigned part URLs
+
+  loop Parts
+    Client->>Store: PUT part (presigned)
+  end
+  Client->>Store: Complete multipart
+  Store-->>Queue: Upload Complete Event (uploadId)
+
+  Queue->>Worker: Consume (uploadId)
+  Worker->>Store: Write renditions
+  Worker->>Store: Write thumbnails
+  Worker->>Meta: status PROCESSING to READY
+
+  alt Processing failure
+    Worker->>Queue: DLQ (reason)
+    Meta->>Meta: status FAILED
+  else Success
+    Worker-->>CDN: Origin warm fetch
+    Meta->>Meta: status READY
+  end

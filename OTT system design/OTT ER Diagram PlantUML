@@ -1,0 +1,130 @@
+https://www.plantuml.com/plantuml/umla/hLLDRzim3BthL-Yso_87YgxeCAHeiAqhsWux6gp5EaBrOL1qig3PVvyiAvcLUGPQh8T6Vdn-V2GjwJ8m47VM28DFBDbBqisQfTA4DMllH7ZMhWK2AursoBiMfITUUo7UoGzJVn5VtZoi7bRB-tzI13hMl9FV0v9y4L9sSL5f9S_aeswqOtb-VllvuY965elu3ore4uCRe7eD594MGjXwKWKO6BWB1LGJ0gEgW2FCscBas5RyEbgu9V-a3IONxR2UCJBXyse8Ex1OP3RWcWwQ4epFLKE-QqVe7o_ttMEeIRTzuvEXC0BUvAgDBgeqj9C-4LSAk8VxduYXKmKoqSrHqs1dut9esh2UiJTJHRO9rdUE-zHOQmjc96kzAiqV0cyPzYVl-E2xZkjvtwpPbBaL7Wk9EEDFZc23ZaeQeK48UD9F0jQkYSzFnWEF79Jp6TdzwZSQPys-brSZmweZoDuYOVnX8MaChr1Yps2gW12y2nDoFPxa1ihSy5FgwR7dbrrd7v7-oh9iTV3gDVLFcia47DIAP4NBCh3H2dtLaPcSo0_WUdsj0tlQ9MFR7gZM0pBJXkcZ9NlBrSqQdmuQ25mb3wYgrWUTQnbuITgs1XdJozuR15U-DhDRxd2ZSPlAfBJy__MDjyNHi8tSlBtcDlNC1NIt_FBnOVNjvlvwTJjp2wNhPxzVBFpByHuuasi8uqXnAiUmtxeW2koW0Blil46718n1Y2oREUNt4yiXg9_32IdtFOQtf9F8uTYQ5ibpB5WZbJoxI133CP09UHVdWlD33kMjbsE5ydwVZwKui531QIodc0vcsKDKNA9JdJNYDm00
+
+
+@startuml
+left to right direction
+skinparam linetype ortho
+
+' =====================
+' ENTITIES
+' =====================
+
+entity User {
+  user_id : bigint <<PK>>
+  --
+  email : varchar
+  password : varchar
+  status : varchar
+  created_at : timestamp
+}
+
+entity Profile {
+  profile_id : bigint <<PK>>
+  --
+  user_id : bigint <<FK>>
+  name : varchar
+  language : varchar
+  age_group : varchar
+}
+
+entity Subscription {
+  subscription_id : bigint <<PK>>
+  --
+  user_id : bigint <<FK>>
+  plan_type : varchar
+  start_date : date
+  end_date : date
+  status : varchar
+}
+
+entity Payment {
+  payment_id : bigint <<PK>>
+  --
+  subscription_id : bigint <<FK>>
+  amount : decimal
+  payment_mode : varchar
+  payment_status : varchar
+  created_at : timestamp
+}
+
+entity Content {
+  content_id : bigint <<PK>>
+  --
+  title : varchar
+  description : text
+  genre : varchar
+  release_date : date
+  rating : float
+  content_type : varchar
+}
+
+entity Movie {
+  content_id : bigint <<PK, FK>>
+  --
+  duration : int
+}
+
+entity Series {
+  content_id : bigint <<PK, FK>>
+  --
+  total_seasons : int
+}
+
+entity Season {
+  season_id : bigint <<PK>>
+  --
+  series_id : bigint <<FK>>
+  season_number : int
+}
+
+entity Episode {
+  content_id : bigint <<PK, FK>>
+  --
+  season_id : bigint <<FK>>
+  episode_number : int
+  duration : int
+  video_url : varchar
+}
+
+entity WatchHistory {
+  watch_history_id : bigint <<PK>>
+  --
+  profile_id : bigint <<FK>>
+  content_id : bigint <<FK>>
+  episode_id : bigint <<FK>>
+  last_watched_position : bigint
+  completed : boolean
+  last_watched_at : timestamp
+}
+
+entity Review {
+  review_id : bigint <<PK>>
+  --
+  profile_id : bigint <<FK>>
+  content_id : bigint <<FK>>
+  rating : int
+  comment : text
+  created_at : timestamp
+}
+
+' =====================
+' RELATIONSHIPS
+' =====================
+
+User ||--o{ Profile : has
+User ||--o{ Subscription : owns
+Subscription ||--o{ Payment : generates
+
+Profile ||--o{ WatchHistory : tracks
+Profile ||--o{ Review : writes
+
+Content ||--o{ WatchHistory : watched
+Content ||--o{ Review : reviewed
+
+Series ||--o{ Season : has
+Season ||--o{ Episode : has
+
+Content ||--|| Movie : is_a
+Content ||--|| Series : is_a
+Content ||--|| Episode : is_a
+@enduml

@@ -1,0 +1,14 @@
+flowchart TD
+  A[Web/App] -->|Init| B[API Gateway]
+  B --> C[Upload Service]
+  C -->|Session| A[Web/App]
+  A -->|Multipart PUT| D[Object Storage - Raw]
+  D -->|Complete Event| E[Event Queue]
+  E -->|Process| F[Workers]
+  F -->|Renditions| G[Object Storage - Processed]
+  G -->|Origin| H[CDN]
+
+  F --> M[Metadata Service]
+  M --> N[Metadata DB]
+  F --> X[DLQ]
+  X --> Y[Alerts + Ops]

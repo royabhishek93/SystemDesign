@@ -1,0 +1,35 @@
+flowchart LR
+  subgraph Client
+    A[Web App]
+  end
+  subgraph Control
+    B[API Gateway]
+    C[Upload Service]
+    M[Metadata Service]
+    N[Metadata DB]
+  end
+  subgraph Data
+    D[Raw Storage]
+    G[Processed Storage]
+    H[CDN]
+  end
+  subgraph Async
+    E[Event Queue]
+    F[Workers]
+    X[DLQ]
+    Y[Alerts]
+  end
+
+  A -->|1 Upload Init| B
+  B --> C
+  C -->|2 Session uploadId + URLs| A
+  A -->|3 Direct Chunk Upload| D
+  D -->|4 Upload Complete Event| E
+  E -->|5 Async Processing| F
+  F -->|6 Processed Output| G
+  G -->|7 Origin Fetch| H
+
+  F --> M
+  M --> N
+  F -.-> X
+  X --> Y

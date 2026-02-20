@@ -1,0 +1,35 @@
+@startuml
+left to right direction
+skinparam shadowing false
+skinparam arrowThickness 1
+skinparam defaultFontName Helvetica
+
+actor "Content Provider" as CP
+participant "OTT API" as API
+database "Metadata DB" as DB
+queue "Message Queue" as MQ
+node "Workers\n(Transcode/Encrypt/Package)" as WK
+cloud "Object Storage\n(Origin)" as S3
+cloud "CDN" as CDN
+actor "User/Player" as USER
+
+CP -> API: Request upload
+API -> DB: Upsert metadata (title, tags, release date)
+API -> S3: Create presigned multipart URL
+API --> CP: Return presigned URL + uploadId
+
+CP -> S3: Multipart upload (parallel parts, retries)
+CP -> API: Finalize upload
+API -> S3: Validate object (etag/checksum)
+API -> MQ: Enqueue processing job
+
+MQ -> WK: Pull job
+WK -> S3: Read raw object
+WK -> S3: Write renditions (segments/manifests)
+WK -> DB: Update availability per rendition
+
+USER -> CDN: Request manifest (HLS/DASH)
+CDN -> S3: Fetch origin (cache miss)
+CDN --> USER: Serve cached segments/manifests
+USER -> CDN: Adaptive segment requests (seek, bitrate switches)
+@enduml

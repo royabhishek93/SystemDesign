@@ -1,0 +1,104 @@
+erDiagram
+    USER ||--o{ PROFILE : one_to_many_composition
+    USER ||--o{ SUBSCRIPTION : one_to_many
+    SUBSCRIPTION ||--o{ PAYMENT : one_to_many
+
+    PROFILE ||--o{ WATCH_HISTORY : one_to_many
+    CONTENT ||--o{ WATCH_HISTORY : one_to_many
+
+    PROFILE ||--o{ REVIEW : one_to_many
+    CONTENT ||--o{ REVIEW : one_to_many
+
+    SERIES ||--o{ SEASON : composition
+    SEASON ||--o{ EPISODE : composition
+
+    CONTENT ||--|| MOVIE : inheritance
+    CONTENT ||--|| SERIES : inheritance
+    CONTENT ||--|| EPISODE : inheritance
+
+    USER {
+        bigint user_id PK
+        string email
+        string password
+        string status
+        timestamp created_at
+    }
+
+    PROFILE {
+        bigint profile_id PK
+        bigint user_id FK
+        string name
+        string language
+        string age_group
+    }
+
+    SUBSCRIPTION {
+        bigint subscription_id PK
+        bigint user_id FK
+        string plan_type
+        date start_date
+        date end_date
+        string status
+    }
+
+    PAYMENT {
+        bigint payment_id PK
+        bigint subscription_id FK
+        decimal amount
+        string payment_mode
+        string payment_status
+        timestamp created_at
+    }
+
+    CONTENT {
+        bigint content_id PK
+        string title
+        string description
+        string genre
+        date release_date
+        float rating
+        string content_type
+    }
+
+    MOVIE {
+        bigint content_id PK, FK
+        int duration
+    }
+
+    SERIES {
+        bigint content_id PK, FK
+        int total_seasons
+    }
+
+    SEASON {
+        bigint season_id PK
+        bigint series_id FK
+        int season_number
+    }
+
+    EPISODE {
+        bigint content_id PK, FK
+        bigint season_id FK
+        int episode_number
+        int duration
+        string video_url
+    }
+
+    WATCH_HISTORY {
+        bigint watch_history_id PK
+        bigint profile_id FK
+        bigint content_id FK
+        bigint episode_id FK
+        bigint last_watched_position
+        boolean completed
+        timestamp last_watched_at
+    }
+
+    REVIEW {
+        bigint review_id PK
+        bigint profile_id FK
+        bigint content_id FK
+        int rating
+        string comment
+        timestamp created_at
+    }
