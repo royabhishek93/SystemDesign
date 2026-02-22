@@ -1,0 +1,43 @@
+sequenceDiagram
+    participant I1 as Instance 1
+    participant Redis as Redis Lock
+    participant Job as Job Execution
+    participant I2 as Instance 2
+
+    Note over I1,I2: Normal Execution Flow
+
+    I1->>Redis: Acquire lock (TTL=5min)
+    Redis-->>I1: ✅ Lock acquired at 2:00 AM
+    
+    I1->>Job: Start processing
+    Job-->>I1: Processing...
+
+    Note over I1: 2:02 AM - Still processing
+
+    rect rgb(255, 200, 200)
+        Note over I1: ⚠️ 2:03 AM - CRASH!<br/>Network failure / OOM / Hardware issue
+    end
+
+    Note over Redis: Lock still held<br/>TTL counting down
+
+    Note over I2: 2:04 AM - Next scheduled trigger<br/>Attempt to acquire lock
+    I2->>Redis: Try acquire lock
+    Redis-->>I2: ❌ Lock still held by Instance 1
+
+    Note over Redis: 2:05 AM - TTL EXPIRES<br/>Lock automatically released
+
+    Note over I2: 2:06 AM - Retry acquisition
+    I2->>Redis: Try acquire lock again
+    Redis-->>I2: ✅ Lock acquired
+
+    rect rgb(200, 255, 200)
+        Note over I2: Automatic failover!<br/>Job resumes on Instance 2
+    end
+
+    I2->>Job: Start processing (idempotent)
+    Job-->>I2: Complete successfully
+
+    I2->>Redis: Release lock
+    Redis-->>I2: ✅ Released
+
+    Note over I1,I2: Recovery complete<br/>Total delay: ~3 minutes (TTL period)

@@ -1,0 +1,49 @@
+graph TB
+    subgraph "Kubernetes Cluster"
+        subgraph "Spring Boot Pods"
+            POD1["☸️ Pod 1<br/>👑 LEADER<br/>@Scheduled Active"]
+            POD2["☸️ Pod 2<br/>Follower<br/>Standby"]
+            POD3["☸️ Pod 3<br/>Follower<br/>Standby"]
+            POD4["☸️ Pod N<br/>Follower<br/>Standby"]
+        end
+
+        subgraph "K8s Leader Election"
+            Lease["🔐 Kubernetes<br/>Lease API<br/>Leader Election<br/>Heartbeat: 10s"]
+        end
+    end
+
+    subgraph "Job Execution"
+        Jobs["📋 Scheduled Jobs<br/>Daily Reports<br/>Hourly Cleanup<br/>Data Processing"]
+    end
+
+    subgraph "Monitoring & Observability"
+        K8sDash["☸️ K8s Dashboard<br/>Pod Status"]
+        Prom["📊 Prometheus<br/>Job Metrics"]
+        Grafana["📈 Grafana<br/>Dashboards"]
+    end
+
+    POD1 <-->|"Acquire & Renew"| Lease
+    POD2 <-.->|"Monitor Lease"| Lease
+    POD3 <-.->|"Monitor Lease"| Lease
+    POD4 <-.->|"Monitor Lease"| Lease
+
+    Lease -->|"✅ Elected"| POD1
+
+    POD1 -->|"Only Leader Executes"| Jobs
+    
+    POD1 -.->|Metrics| Prom
+    Jobs -.->|Status| K8sDash
+    Prom --> Grafana
+
+    Note1["💡 Failover: 15-30 seconds<br/>✅ Zero coordination overhead<br/>✅ Scales to 100+ pods"]
+
+    style POD1 fill:#326CE5,stroke:#FFF,stroke-width:4px,color:#FFF
+    style POD2 fill:#B0C4DE,stroke:#4682B4,stroke-width:2px
+    style POD3 fill:#B0C4DE,stroke:#4682B4,stroke-width:2px
+    style POD4 fill:#B0C4DE,stroke:#4682B4,stroke-width:2px
+    style Lease fill:#FF6B6B,stroke:#C0392B,stroke-width:3px,color:#FFF
+    style Jobs fill:#4CAF50,stroke:#2E7D32,stroke-width:2px,color:#FFF
+    style K8sDash fill:#326CE5,stroke:#1565C0,stroke-width:2px,color:#FFF
+    style Prom fill:#E6522C,stroke:#B71C1C,stroke-width:2px,color:#FFF
+    style Grafana fill:#F46800,stroke:#E65100,stroke-width:2px,color:#FFF
+    style Note1 fill:#FFF9C4,stroke:#F57F17,stroke-width:2px

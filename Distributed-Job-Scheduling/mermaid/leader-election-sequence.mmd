@@ -1,0 +1,43 @@
+sequenceDiagram
+    participant I1 as Instance 1
+    participant I2 as Instance 2
+    participant I3 as Instance 3
+    participant K8s as Kubernetes<br/>Lease API
+    participant Job as Scheduled Jobs
+
+    Note over I1,I3: Startup - Leader Election
+
+    I1->>K8s: Attempt to acquire lease
+    I2->>K8s: Attempt to acquire lease
+    I3->>K8s: Attempt to acquire lease
+
+    K8s-->>I1: ✅ Lease acquired - You are LEADER
+    K8s-->>I2: ❌ Lease held by Instance 1
+    K8s-->>I3: ❌ Lease held by Instance 1
+
+    Note over I1: I am the leader<br/>Start all schedulers
+    Note over I2: I am a follower<br/>Do nothing
+    Note over I3: I am a follower<br/>Do nothing
+
+    loop Every 10 seconds (heartbeat)
+        I1->>K8s: Renew lease (I'm still alive)
+        K8s-->>I1: Lease renewed
+    end
+
+    loop Every scheduled time
+        Note over I1: Only leader executes jobs
+        I1->>Job: Trigger job execution
+        Job-->>I1: Complete
+    end
+
+    Note over I1: ⚠️ Instance 1 CRASHES
+
+    I2->>K8s: Lease expired? Try to acquire
+    K8s-->>I2: ✅ Lease acquired - You are LEADER
+    
+    Note over I2: I am now the leader<br/>Take over scheduling
+
+    loop New leader continues
+        I2->>Job: Trigger job execution
+        Job-->>I2: Complete
+    end

@@ -1,0 +1,71 @@
+graph TB
+    subgraph "Scheduler Layer - Lightweight"
+        S1["⚙️ Spring Boot<br/>Scheduler 1<br/>cron: 0 0 2 * * *"]
+        S2["⚙️ Spring Boot<br/>Scheduler 2<br/>cron: 0 0 2 * * *"]
+        S3["⚙️ Spring Boot<br/>Scheduler N<br/>cron: 0 0 2 * * *"]
+    end
+
+    subgraph "Message Queue - Kafka/SQS"
+        Kafka["📨 KAFKA Topics<br/>🔸 daily-reports<br/>🔸 hourly-cleanup<br/>🔸 data-processing"]
+        SQS["📬 AWS SQS<br/>Job Queues<br/>FIFO / Standard"]
+        RabbitMQ["🐰 RabbitMQ<br/>Work Queues<br/>DLQ Support"]
+    end
+
+    subgraph "Worker Pool - Auto-Scaling"
+        W1["👷 Worker 1<br/>Processing"]
+        W2["👷 Worker 2<br/>Processing"]
+        W3["👷 Worker 3<br/>Processing"]
+        W4["👷 Worker 4<br/>Processing"]
+        W5["👷 Worker N<br/>Auto-scaled"]
+    end
+
+    subgraph "Storage & State"
+        DB["🗄️ PostgreSQL<br/>Job Status<br/>Execution History"]
+        Redis2["🗄️ Redis<br/>Deduplication<br/>Rate Limiting"]
+    end
+
+    subgraph "Observability"
+        CloudWatch["☁️ CloudWatch<br/>Queue Metrics"]
+        Prom["📊 Prometheus<br/>Worker Metrics"]
+        Grafana["📈 Grafana<br/>Dashboards"]
+    end
+
+    S1 -->|"Publish Job Message"| Kafka
+    S2 -->|"Publish Job Message"| Kafka
+    S3 -->|"Publish Job Message"| Kafka
+
+    Kafka -->|"Consumer Group"| W1
+    Kafka -->|"Consumer Group"| W2
+    Kafka -->|"Consumer Group"| W3
+    Kafka -->|"Consumer Group"| W4
+    Kafka -->|"Consumer Group"| W5
+
+    W1 --> DB
+    W2 --> DB
+    W1 --> Redis2
+    W2 --> Redis2
+
+    Kafka -.->|"Queue Depth"| CloudWatch
+    CloudWatch -.->|"Auto-scale"| W5
+    W1 -.-> Prom
+    Prom --> Grafana
+
+    Note["💡 Benefits:<br/>✅ Horizontal scaling<br/>✅ Spike protection<br/>✅ Built-in retry & DLQ<br/>✅ Decoupled architecture"]
+
+    style S1 fill:#90EE90,stroke:#228B22,stroke-width:2px
+    style S2 fill:#90EE90,stroke:#228B22,stroke-width:2px
+    style S3 fill:#90EE90,stroke:#228B22,stroke-width:2px
+    style Kafka fill:#231F20,stroke:#FFF,stroke-width:3px,color:#FFF
+    style SQS fill:#FF9900,stroke:#FF6600,stroke-width:2px
+    style RabbitMQ fill:#FF6600,stroke:#CC5200,stroke-width:2px,color:#FFF
+    style W1 fill:#4169E1,stroke:#000080,stroke-width:2px,color:#FFF
+    style W2 fill:#4169E1,stroke:#000080,stroke-width:2px,color:#FFF
+    style W3 fill:#4169E1,stroke:#000080,stroke-width:2px,color:#FFF
+    style W4 fill:#4169E1,stroke:#000080,stroke-width:2px,color:#FFF
+    style W5 fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#FFF
+    style DB fill:#336791,stroke:#1A3A52,stroke-width:2px,color:#FFF
+    style Redis2 fill:#DC143C,stroke:#8B0000,stroke-width:2px,color:#FFF
+    style CloudWatch fill:#FF9900,stroke:#FF6600,stroke-width:2px
+    style Prom fill:#E6522C,stroke:#B71C1C,stroke-width:2px,color:#FFF
+    style Grafana fill:#F46800,stroke:#E65100,stroke-width:2px,color:#FFF
+    style Note fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px

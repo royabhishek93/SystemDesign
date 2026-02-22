@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant I1 as Instance 1
+    participant DB as Database
+    participant Payment as Payment Service
+
+    Note over I1,Payment: First Execution (Normal Flow)
+
+    I1->>DB: INSERT execution_id='2026-02-22'<br/>status='RUNNING'
+    DB-->>I1: ✅ Inserted (unique constraint passes)
+
+    I1->>Payment: Charge customer $100
+    Payment-->>I1: ✅ Success
+
+    I1->>DB: UPDATE status='COMPLETED'
+    DB-->>I1: ✅ Updated
+
+    Note over I1,Payment: Duplicate Execution Attempt<br/>(Network retry / Lock failure / Crash recovery)
+
+    participant I2 as Instance 2
+
+    rect rgb(255, 245, 200)
+        Note over I2: Same job triggered again
+    end
+
+    I2->>DB: INSERT execution_id='2026-02-22'<br/>status='RUNNING'
+    
+    rect rgb(255, 200, 200)
+        DB-->>I2: ❌ UNIQUE CONSTRAINT VIOLATION<br/>execution_id already exists
+    end
+
+    Note over I2: Duplicate detected!<br/>Skip payment processing
+
+    rect rgb(200, 255, 200)
+        Note over I2: ✅ Idempotent - No harm done<br/>Customer NOT charged twice
+    end
+
+    Note over I1,Payment: Database Schema with UNIQUE constraint
+
+    Note over DB: job_executions table with<br/>execution_id PRIMARY KEY<br/>prevents duplicate processing

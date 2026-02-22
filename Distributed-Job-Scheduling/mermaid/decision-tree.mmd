@@ -1,0 +1,41 @@
+graph TD
+    Start[Need Distributed<br/>Job Scheduling?] --> K8s{Running on<br/>Kubernetes?}
+    
+    K8s -->|Yes| ResourceIntensive{Jobs resource<br/>intensive?}
+    K8s -->|No| Traditional[Traditional VMs/EC2]
+    
+    ResourceIntensive -->|Yes<br/>GPUs, High CPU| K8sCron[✅ Kubernetes CronJob<br/>Isolated pods per execution]
+    ResourceIntensive -->|No| ManyJobs{Many frequent<br/>jobs? >20}
+    
+    ManyJobs -->|Yes| LeaderElection[✅ Leader Election<br/>K8s Lease API<br/>Zero overhead]
+    ManyJobs -->|No| SimpleK8s[✅ Redis Lock<br/>Simple for few jobs]
+    
+    Traditional --> HaveRedis{Already<br/>have Redis?}
+    
+    HaveRedis -->|Yes| Scale{Scale?}
+    HaveRedis -->|No| ComplexSched{Complex scheduling<br/>needs?}
+    
+    Scale -->|Small<br/>5-20 instances| RedisLock[✅ Redis Lock<br/>Simple, effective]
+    Scale -->|Large<br/>100+ instances| QueueBased[✅ Queue-Based<br/>Kafka/SQS]
+    
+    ComplexSched -->|Yes<br/>Calendars, dependencies| Quartz[✅ Quartz Clustered<br/>Enterprise features]
+    ComplexSched -->|No| CheckScale{Scale?}
+    
+    CheckScale -->|High<br/>10M+ jobs/day| QueueBased
+    CheckScale -->|Moderate| RedisLock
+    
+    VeryHighScale{Very high scale?<br/>10M+ jobs/day} --> QueueBased
+    
+    AuditTrail{Need job<br/>persistence/audit?} -->|Yes| QuartzOrQueue[Quartz or Queue-Based]
+    
+    Spikes{Variable workload<br/>with spikes?} -->|Yes| QueueBased
+    
+    Simple{Simple requirements<br/>small scale?} -->|Yes| RedisLock
+    
+    style Start fill:#e1f5ff,stroke:#0066cc
+    style K8sCron fill:#d4edda,stroke:#28a745
+    style LeaderElection fill:#d4edda,stroke:#28a745
+    style RedisLock fill:#d4edda,stroke:#28a745
+    style QueueBased fill:#d4edda,stroke:#28a745
+    style Quartz fill:#d4edda,stroke:#28a745
+    style SimpleK8s fill:#d4edda,stroke:#28a745

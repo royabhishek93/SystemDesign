@@ -1,0 +1,44 @@
+graph TB
+    subgraph "Multiple Spring Boot Instances"
+        SB1["⚙️ Spring Boot<br/>Instance 1<br/>@Scheduled"]
+        SB2["⚙️ Spring Boot<br/>Instance 2<br/>@Scheduled"]
+        SB3["⚙️ Spring Boot<br/>Instance 3<br/>@Scheduled"]
+        SB4["⚙️ Spring Boot<br/>Instance N<br/>@Scheduled"]
+    end
+
+    subgraph "Redis Distributed Lock"
+        Redis["🗄️ REDIS<br/>Distributed Lock<br/>SETNX + TTL"]
+    end
+
+    subgraph "Business Logic"
+        Job["📋 Job Execution<br/>Reports/Processing<br/>Database Updates"]
+    end
+
+    subgraph "Monitoring"
+        Metrics["📊 Prometheus<br/>+ Grafana<br/>Metrics & Alerts"]
+    end
+
+    SB1 -->|"1. Try Lock"| Redis
+    SB2 -->|"1. Try Lock"| Redis
+    SB3 -->|"1. Try Lock"| Redis
+    SB4 -->|"1. Try Lock"| Redis
+
+    Redis -->|"2. ✅ Winner"| SB1
+    Redis -->|"❌ Locked"| SB2
+    Redis -->|"❌ Locked"| SB3
+    Redis -->|"❌ Locked"| SB4
+
+    SB1 -->|"3. Execute"| Job
+    Job -->|"4. Complete"| SB1
+    SB1 -->|"5. Release Lock"| Redis
+
+    SB1 -.->|Metrics| Metrics
+    Job -.->|Duration| Metrics
+
+    style SB1 fill:#90EE90,stroke:#228B22,stroke-width:3px
+    style SB2 fill:#FFE4B5,stroke:#FFA500,stroke-width:2px
+    style SB3 fill:#FFE4B5,stroke:#FFA500,stroke-width:2px
+    style SB4 fill:#FFE4B5,stroke:#FFA500,stroke-width:2px
+    style Redis fill:#DC143C,stroke:#8B0000,stroke-width:3px,color:#FFF
+    style Job fill:#4169E1,stroke:#000080,stroke-width:2px,color:#FFF
+    style Metrics fill:#FF6347,stroke:#8B0000,stroke-width:2px

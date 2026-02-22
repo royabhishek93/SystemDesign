@@ -1,0 +1,27 @@
+sequenceDiagram
+    participant I1 as Instance 1
+    participant I2 as Instance 2
+    participant I3 as Instance 3
+    participant Redis as Redis
+    participant Job as Job Execution
+
+    Note over I1,I3: 2:00 AM - Scheduled trigger fires on all instances
+
+    I1->>Redis: SETNX "job-lock" TTL=5min
+    I2->>Redis: SETNX "job-lock" TTL=5min
+    I3->>Redis: SETNX "job-lock" TTL=5min
+    
+    Redis-->>I1: ✅ Lock acquired (first)
+    Redis-->>I2: ❌ Key already exists
+    Redis-->>I3: ❌ Key already exists
+
+    Note over I2: Skip execution (already running)
+    Note over I3: Skip execution (already running)
+
+    I1->>Job: Execute business logic
+    Job-->>I1: Processing complete
+
+    I1->>Redis: DEL "job-lock"
+    Redis-->>I1: Lock released
+
+    Note over I1,I3: Next execution - all can compete again

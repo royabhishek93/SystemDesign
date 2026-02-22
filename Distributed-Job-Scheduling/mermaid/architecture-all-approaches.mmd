@@ -1,0 +1,73 @@
+graph TB
+    subgraph "Approach 1: Redis Distributed Lock"
+        A1["⚙️ Spring Boot<br/>Instances: 5-20"]
+        A1R["🗄️ Redis<br/>SETNX + TTL"]
+        A1J["📋 Job<br/>Execution"]
+        A1 --> A1R
+        A1R --> A1J
+        A1M["Scale: ⭐⭐⭐<br/>Setup: 1 day<br/>Cost: $"]
+    end
+
+    subgraph "Approach 2: Leader Election"
+        A2["☸️ K8s Pods<br/>Instances: 50+"]
+        A2L["🔐 Lease API<br/>Leader Election"]
+        A2J["📋 Jobs<br/>Only Leader"]
+        A2 --> A2L
+        A2L --> A2J
+        A2M["Scale: ⭐⭐⭐⭐⭐<br/>Setup: 3-5 days<br/>Cost: $"]
+    end
+
+    subgraph "Approach 3: Quartz Clustered"
+        A3["⚙️ Spring Boot<br/>+ Quartz<br/>Instances: 10-100"]
+        A3D["🗄️ PostgreSQL<br/>Row Locking<br/>JDBC JobStore"]
+        A3J["📋 Job<br/>Scheduler"]
+        A3 --> A3D
+        A3D --> A3J
+        A3M["Scale: ⭐⭐⭐⭐<br/>Setup: 2-3 days<br/>Cost: $"]
+    end
+
+    subgraph "Approach 4: Queue-Based"
+        A4["⚙️ Lightweight<br/>Scheduler"]
+        A4Q["📨 Kafka/SQS<br/>Message Queue"]
+        A4W["👷 Workers<br/>Auto-scale"]
+        A4 --> A4Q
+        A4Q --> A4W
+        A4M["Scale: ⭐⭐⭐⭐⭐<br/>Setup: 3-5 days<br/>Cost: $$$"]
+    end
+
+    subgraph "Approach 5: K8s CronJob"
+        A5["☸️ Kubernetes<br/>CronJob"]
+        A5P["🎯 Dedicated Pod<br/>Per Execution"]
+        A5J["📋 Job<br/>Isolated"]
+        A5 --> A5P
+        A5P --> A5J
+        A5M["Scale: ⭐⭐⭐⭐<br/>Setup: 1 day<br/>Cost: $$"]
+    end
+
+    subgraph "Selection Criteria"
+        SC["❓ Questions:<br/>• Instances? (5 vs 500)<br/>• Jobs? (Few vs Many)<br/>• Infrastructure? (K8s?)<br/>• Budget? ($ vs $$$)<br/>• Timeline? (1 day vs weeks)"]
+    end
+
+    SC -.->|"5-20 inst<br/>Redis exists"| A1
+    SC -.->|"50+ inst<br/>Many jobs"| A2
+    SC -.->|"Enterprise<br/>Audit trail"| A3
+    SC -.->|"10M+ jobs/day<br/>High scale"| A4
+    SC -.->|"K8s exists<br/>GPU jobs"| A5
+
+    style A1 fill:#FFE4E1,stroke:#DC143C,stroke-width:3px
+    style A1R fill:#DC143C,color:#FFF
+    style A2 fill:#E6F3FF,stroke:#326CE5,stroke-width:3px
+    style A2L fill:#326CE5,color:#FFF
+    style A3 fill:#F0E68C,stroke:#DAA520,stroke-width:3px
+    style A3D fill:#336791,color:#FFF
+    style A4 fill:#E8F5E9,stroke:#4CAF50,stroke-width:3px
+    style A4Q fill:#231F20,color:#FFF
+    style A4W fill:#4169E1,color:#FFF
+    style A5 fill:#E1BEE7,stroke:#9C27B0,stroke-width:3px
+    style A5P fill:#326CE5,color:#FFF
+    style SC fill:#FFF3E0,stroke:#FF6F00,stroke-width:3px
+    style A1M fill:#FFEBEE
+    style A2M fill:#E3F2FD
+    style A3M fill:#FFFDE7
+    style A4M fill:#F1F8E9
+    style A5M fill:#F3E5F5

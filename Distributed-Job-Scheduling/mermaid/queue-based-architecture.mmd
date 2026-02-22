@@ -1,0 +1,46 @@
+graph TB
+    subgraph Scheduling Layer
+        S1[Scheduler Instance 1<br/>Lightweight]
+        S2[Scheduler Instance 2<br/>Lightweight]
+        S3[Scheduler Instance 3<br/>Lightweight]
+    end
+
+    subgraph Message Queue
+        Q[Kafka / SQS / RabbitMQ<br/>Job Queue]
+    end
+
+    subgraph Worker Pool
+        W1[Worker 1<br/>Process Jobs]
+        W2[Worker 2<br/>Process Jobs]
+        W3[Worker 3<br/>Process Jobs]
+        W4[Worker 4<br/>Process Jobs]
+        W5[Worker N...<br/>Auto-scaling]
+    end
+
+    subgraph Monitoring
+        M[Queue Depth Metrics<br/>Auto-scale Trigger]
+    end
+
+    S1 -->|Publish job message| Q
+    S2 -->|Publish job message| Q
+    S3 -->|Publish job message| Q
+
+    Q -->|Consume| W1
+    Q -->|Consume| W2
+    Q -->|Consume| W3
+    Q -->|Consume| W4
+    Q -->|Consume| W5
+
+    Q -.Monitor depth.-> M
+    M -.Scale workers.-> W1
+
+    style S1 fill:#e1f5ff
+    style S2 fill:#e1f5ff
+    style S3 fill:#e1f5ff
+    style Q fill:#fff3cd
+    style W1 fill:#d4edda
+    style W2 fill:#d4edda
+    style W3 fill:#d4edda
+    style W4 fill:#d4edda
+    style W5 fill:#d4edda
+    style M fill:#f8d7da

@@ -1,0 +1,86 @@
+graph TB
+    subgraph "Application Layer"
+        SB["⚙️ Spring Boot 3.2<br/>Java 17+<br/>@Scheduled Annotation<br/>Multiple Instances"]
+    end
+
+    subgraph "Coordination Services"
+        Redis["🗄️ Redis 7.x<br/>Distributed Lock<br/>SETNX + TTL<br/>Redisson Library"]
+        K8s["☸️ Kubernetes 1.28+<br/>Leader Election<br/>Lease API<br/>Spring Cloud K8s"]
+        ZK["🔷 ZooKeeper<br/>Consensus<br/>Apache Curator"]
+    end
+
+    subgraph "Message Queues"
+        Kafka["📨 Apache Kafka<br/>Consumer Groups<br/>Exactly-once Semantics"]
+        SQS["📬 AWS SQS<br/>FIFO Queues<br/>DLQ Support"]
+        Rabbit["🐰 RabbitMQ<br/>Work Queues<br/>Publisher Confirms"]
+    end
+
+    subgraph "Schedulers"
+        Quartz["🕐 Quartz Scheduler<br/>JDBC JobStore<br/>Cluster Mode<br/>Cron Expressions"]
+        KCron["☸️ K8s CronJob<br/>Native Scheduling<br/>Pod Management"]
+    end
+
+    subgraph "Storage Layer"
+        PG["🗄️ PostgreSQL 15+<br/>Job History<br/>Row-level Locking<br/>SELECT FOR UPDATE"]
+        RCache["🗄️ Redis Cache<br/>Deduplication<br/>Rate Limiting"]
+        S3["☁️ AWS S3<br/>Job Artifacts<br/>Long-term Storage"]
+    end
+
+    subgraph "Observability Stack"
+        Prom["📊 Prometheus<br/>Metrics Collection<br/>Time-series DB"]
+        Graf["📈 Grafana<br/>Dashboards<br/>Visualization"]
+        ELK["📝 ELK Stack<br/>Centralized Logging<br/>Elasticsearch"]
+        Alert["🚨 AlertManager<br/>PagerDuty<br/>Slack Integration"]
+    end
+
+    subgraph "Security & Auth"
+        Cognito["🔐 AWS Cognito<br/>Authentication"]
+        IAM["🔑 IAM Roles<br/>Authorization"]
+    end
+
+    SB --> Redis
+    SB --> K8s
+    SB --> ZK
+    SB --> Kafka
+    SB --> SQS
+    SB --> Rabbit
+    SB --> Quartz
+    SB --> KCron
+
+    Quartz --> PG
+    SB --> PG
+    SB --> RCache
+    SB --> S3
+
+    SB -.-> Prom
+    Prom --> Graf
+    SB -.-> ELK
+    Prom --> Alert
+    
+    SB --> Cognito
+    SB --> IAM
+
+    Note1["💡 Production Stack:<br/>✅ High Availability Setup<br/>✅ Multi-AZ Deployment<br/>✅ Auto-scaling Groups<br/>✅ Disaster Recovery<br/>✅ Circuit Breakers"]
+    
+    Note2["🛠️ Languages & Frameworks:<br/>☕ Java 17+<br/>🍃 Spring Boot 3.2<br/>☸️ Spring Cloud<br/>🐳 Docker<br/>☸️ Kubernetes"]
+
+    style SB fill:#6DB33F,stroke:#FFF,stroke-width:3px,color:#FFF
+    style Redis fill:#DC143C,stroke:#FFF,stroke-width:2px,color:#FFF
+    style K8s fill:#326CE5,stroke:#FFF,stroke-width:2px,color:#FFF
+    style ZK fill:#00A0B0,stroke:#FFF,stroke-width:2px,color:#FFF
+    style Kafka fill:#231F20,stroke:#FFF,stroke-width:2px,color:#FFF
+    style SQS fill:#FF9900,stroke:#FFF,stroke-width:2px
+    style Rabbit fill:#FF6600,stroke:#FFF,stroke-width:2px,color:#FFF
+    style Quartz fill:#007396,stroke:#FFF,stroke-width:2px,color:#FFF
+    style KCron fill:#326CE5,stroke:#FFF,stroke-width:2px,color:#FFF
+    style PG fill:#336791,stroke:#FFF,stroke-width:2px,color:#FFF
+    style RCache fill:#DC143C,stroke:#FFF,stroke-width:2px,color:#FFF
+    style S3 fill:#FF9900,stroke:#FFF,stroke-width:2px
+    style Prom fill:#E6522C,stroke:#FFF,stroke-width:2px,color:#FFF
+    style Graf fill:#F46800,stroke:#FFF,stroke-width:2px,color:#FFF
+    style ELK fill:#005571,stroke:#FFF,stroke-width:2px,color:#FFF
+    style Alert fill:#FF4081,stroke:#FFF,stroke-width:2px,color:#FFF
+    style Cognito fill:#FF9900,stroke:#FFF,stroke-width:2px
+    style IAM fill:#FF9900,stroke:#FFF,stroke-width:2px
+    style Note1 fill:#E8F5E9,stroke:#4CAF50,stroke-width:2px
+    style Note2 fill:#E3F2FD,stroke:#2196F3,stroke-width:2px
