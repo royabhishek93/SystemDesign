@@ -1,0 +1,10 @@
+flowchart LR
+  users[Clients] --> glb[Global LB]
+  glb --> r1[Region 1]
+  glb --> r2[Region 2]
+  r1 --> r1lb[Regional LB]
+  r2 --> r2lb[Regional LB]
+  r1lb --> r1a[App A]
+  r1lb --> r1b[App B]
+  r2lb --> r2a[App A]
+  r2lb --> r2b[App B]

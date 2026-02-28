@@ -1,0 +1,6 @@
+flowchart LR
+  user[User] --> app[Client App]
+  app --> idp[IdP/Auth Service]
+  idp --> token[Access Token]
+  app --> api[API Gateway]
+  api --> svc[Services]

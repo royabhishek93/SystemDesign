@@ -103,6 +103,44 @@ This comprehensive guide teaches you how to answer distributed job scheduling qu
 
 ---
 
+### [06-Kubernetes-Leader-Election-Production.md](06-Kubernetes-Leader-Election-Production.md) - NEW!
+**Deep dive into production Kubernetes leader election approaches**
+
+For interviews specifically focused on Kubernetes infrastructure:
+- **5 Production-Grade Approaches**:
+  1. **Kubernetes Native Lease API** (etcd-backed, best for cloud-native)
+  2. **External Coordination** (Consul/etcd for multi-cluster)
+  3. **Database-Backed Locks** (PostgreSQL pessimistic locks)
+  4. **Redis Pub/Sub** (fast, in-memory coordination)
+  5. **Message Queue Pattern** (Kafka consumer groups)
+
+- Block diagrams for each approach
+- Complete production code examples
+- Failure scenario walk-throughs
+- Senior-level talking points
+- Idempotency implementation patterns
+- Monitoring and observability
+
+**Best for**: Interviews at companies running Kubernetes (Google, Spotify, Coinbase)
+
+**Read time**: 50 minutes | **Skim**: 15 minutes
+
+---
+
+### [07-Leader-Election-Interview-Cheat-Sheet.md](07-Leader-Election-Interview-Cheat-Sheet.md) - NEW!
+**Perfect 2-minute answer for Kubernetes leader election questions**
+
+- Minimal working code for each approach
+- Quick comparison table
+- Failure handling scenarios
+- Interview red flags (what NOT to say)
+- Lightning round Q&A
+- Practice points to memorize
+
+**Read before any interview**: 5 minutes
+
+---
+
 ## 🚀 Quick Start Paths
 
 ### If Your Interview is Tomorrow (2 hours)

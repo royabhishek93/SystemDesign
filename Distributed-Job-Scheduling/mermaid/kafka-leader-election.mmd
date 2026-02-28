@@ -1,0 +1,28 @@
+graph TD
+    A["Scheduler @ 2:00 AM<br/>Spring Boot Pod"] --> B["SEND Job<br/>to Kafka Queue"]
+    
+    B --> C["Kafka Topic<br/>daily-job-scheduler<br/>Partitions: 1"]
+    
+    C --> D["Consumer Group:<br/>job-scheduler-group"]
+    
+    D --> E["Pod 1"]
+    D --> F["Pod 2"]
+    D --> G["Pod 3"]
+    
+    C --> H["Only 1 Consumer<br/>Polls from<br/>Single Partition"]
+    
+    H --> I{Consumer<br/>Pulls Message}
+    
+    I -->|Currently Pod 1| J["Pod 1: Executes<br/>Job"]
+    I -->|Pod 1 Crashes| K["Pod 2: Continues<br/>from Offset"]
+    
+    J --> L["Mark Offset<br/>Commit to Broker"]
+    K --> L
+    
+    L --> M["✅ Exactly-Once<br/>Like Behavior"]
+    
+    style C fill:#ffccbc
+    style D fill:#e1f5ff
+    style H fill:#c8e6c9
+    style J fill:#fff9c4
+    style K fill:#fff9c4

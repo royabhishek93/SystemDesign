@@ -1,0 +1,5 @@
+flowchart LR
+  client[Client] --> edge[Gateway/LB]
+  edge --> limiter[Rate Limiter]
+  limiter --> store[(Redis/State)]
+  limiter --> svc[Service]

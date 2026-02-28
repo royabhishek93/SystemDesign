@@ -1,0 +1,9 @@
+flowchart LR
+  client[Clients] --> edge[API Gateway]
+  edge --> auth[Auth]
+  edge --> rate[Rate Limiter]
+  edge --> route[Router]
+  route --> svc1[Service A]
+  route --> svc2[Service B]
+  route --> svc3[Service C]
+  edge --> obs[Logs/Metrics/Traces]

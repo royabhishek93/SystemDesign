@@ -1,0 +1,31 @@
+graph TD
+    A["5 Production Approaches<br/>for K8s Leader Election"] 
+    
+    A --> B["K8s Native<br/>Lease API"]
+    A --> C["External<br/>Consul/etcd"]
+    A --> D["Database<br/>Pessimistic Lock"]
+    A --> E["Redis<br/>Pub/Sub"]
+    A --> F["Message Queue<br/>Kafka/SQS"]
+    
+    B --> B1["✅ Native Integration<br/>✅ No New Services<br/>❌ 15-30s Failover"]
+    
+    C --> C1["✅ Multi-Cluster<br/>✅ Strong Consistency<br/>❌ Extra Service"]
+    
+    D --> D1["✅ Simplest<br/>✅ Existing DB<br/>❌ Bottleneck at Scale"]
+    
+    E --> E1["✅ Fast - In Memory<br/>✅ Observable Events<br/>❌ Another Dependency"]
+    
+    F --> F1["✅ Decoupled<br/>✅ Scalable<br/>❌ Complex Setup"]
+    
+    B1 --> G["Choose Based On:<br/>• Cluster Topology<br/>• Scale Requirements<br/>• Existing Infra<br/>• Failure Recovery Time"]
+    C1 --> G
+    D1 --> G
+    E1 --> G
+    F1 --> G
+    
+    style A fill:#e1f5ff
+    style B fill:#c8e6c9
+    style C fill:#c8e6c9
+    style D fill:#c8e6c9
+    style E fill:#c8e6c9
+    style F fill:#c8e6c9

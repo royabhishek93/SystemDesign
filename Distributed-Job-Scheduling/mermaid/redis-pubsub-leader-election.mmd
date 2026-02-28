@@ -1,0 +1,26 @@
+graph TD
+    A["Pod 1"] --> B["SETNX Lock<br/>EX 30s"]
+    C["Pod 2"] --> B
+    D["Pod 3"] --> B
+    
+    B --> E["Redis Instance"]
+    C --> F["SUB election<br/>Channel"]
+    D --> F
+    
+    E --> G["Key: job:lock<br/>Value: pod-1<br/>TTL: 30s"]
+    F --> H["Watch for<br/>Election Events"]
+    
+    B -.->|✅ SUCCESS| I["Pod 1: Leader"]
+    C -.->|❌ FAIL| J["Pod 2: Standby"]
+    D -.->|❌ FAIL| K["Pod 3: Standby"]
+    
+    I --> L["Executes Job"]
+    I --> M["PUBLISH<br/>election event<br/>leader=pod-1"]
+    
+    M --> H
+    H --> N["Pods 2,3: Notified<br/>Know Pod 1 is leading"]
+    
+    style E fill:#ffccbc
+    style I fill:#c8e6c9
+    style L fill:#fff9c4
+    style M fill:#fff9c4

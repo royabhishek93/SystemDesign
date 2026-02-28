@@ -1,0 +1,10 @@
+flowchart LR
+  app[Services] --> metrics[Metrics]
+  app --> logs[Logs]
+  app --> traces[Traces]
+  metrics --> store1[(Metrics Store)]
+  logs --> store2[(Log Store)]
+  traces --> store3[(Trace Store)]
+  store1 --> dashboard[Dashboards/Alerts]
+  store2 --> dashboard
+  store3 --> dashboard

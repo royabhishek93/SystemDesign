@@ -1,0 +1,5 @@
+flowchart LR
+  svcA[Service A] --> saga[Saga Orchestrator]
+  saga --> svcB[Service B]
+  saga --> svcC[Service C]
+  saga --> outbox[(Outbox/Event Log)]

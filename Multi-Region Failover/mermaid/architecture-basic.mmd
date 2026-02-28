@@ -1,0 +1,6 @@
+flowchart LR
+  client[Client] --> glb[Global LB/DNS]
+  glb --> r1[Region 1]
+  glb --> r2[Region 2]
+  r1 --> db1[(DB Primary)]
+  r2 --> db2[(DB Replica/Primary)]

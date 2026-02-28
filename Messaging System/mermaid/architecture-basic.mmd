@@ -1,0 +1,5 @@
+flowchart LR
+  prod[Producer] --> topic[Topic/Queue]
+  topic --> c1[Consumer A]
+  topic --> c2[Consumer B]
+  topic --> dlq[DLQ]

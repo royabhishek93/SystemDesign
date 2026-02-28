@@ -1,0 +1,28 @@
+graph TD
+    A["Kubernetes Clusters<br/>Cluster 1 & 2"] --> B["Pod 1-1"]
+    A --> C["Pod 1-2"]
+    A --> D["Pod 2-1"]
+    A --> E["Pod 2-2"]
+    
+    B --> F["ConsulClient<br/>Register + Lease"]
+    C --> F
+    D --> F
+    E --> F
+    
+    F --> G["Consul Cluster<br/>Cross-Datacenter"]
+    
+    G --> H["Distributed Leadership<br/>Single Leader<br/>Across All Clusters"]
+    
+    H --> I["Leader Pod<br/>Executes Job"]
+    
+    J["Other Pods"] --> K["Watch Consul<br/>Wait for Expiry"]
+    
+    B --> J
+    C --> J
+    D --> J
+    E --> J
+    
+    style A fill:#e1f5ff
+    style G fill:#ffccbc
+    style H fill:#c8e6c9
+    style I fill:#fff9c4

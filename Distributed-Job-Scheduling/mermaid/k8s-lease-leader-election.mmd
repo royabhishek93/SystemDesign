@@ -1,0 +1,20 @@
+graph TD
+    A["K8s Cluster"] --> B["Pod 1<br/>Watch Lease"]
+    A --> C["Pod 2<br/>Watch Lease"]
+    A --> D["Pod 3<br/>Watch Lease"]
+    
+    B --> E["Kubernetes Lease API<br/>etcd Backed"]
+    C --> E
+    D --> E
+    
+    E --> F["Lease State<br/>holder: Pod 1<br/>ttl: 15s<br/>version: 42"]
+    
+    F --> G["Pod 1 Renews<br/>Every 5s"]
+    
+    G --> H["✅ Pod 1 Holds<br/>Leadership"]
+    H --> I["Executes<br/>Scheduled Job"]
+    
+    style A fill:#e1f5ff
+    style H fill:#c8e6c9
+    style I fill:#fff9c4
+    style E fill:#ffccbc

@@ -1,0 +1,39 @@
+sequenceDiagram
+    participant Pod1
+    participant K8s as Kubernetes etcd
+    participant Pod2
+    participant Pod3
+    
+    Note over Pod1,Pod3: Time T=0 (Normal Operation)
+    Pod1->>K8s: Renew Lease (Pod1 is leader)
+    K8s-->>Pod1: ✅ Success
+    
+    Pod2->>K8s: Watch Lease (Read-only)
+    K8s-->>Pod2: Leader: Pod1
+    
+    Pod3->>K8s: Watch Lease (Read-only)
+    K8s-->>Pod3: Leader: Pod1
+    
+    Note over Pod1: Pod1 executes scheduled job
+    Pod1->>Pod1: Execute Job (00:00 - 00:30)
+    
+    Note over Pod1,Pod3: Time T=10 (Pod1 Crashes)
+    Pod1->>Pod1: ❌ CRASH! Out of Memory
+    Pod1--xK8s: (connection lost)
+    
+    Note over Pod1,Pod3: Time T=15 (Lease Expires)
+    K8s->>K8s: Lease TTL = 15s<br/>Lease Expired!
+    K8s-->>Pod2: 🔔 Lease Expired!
+    K8s-->>Pod3: 🔔 Lease Expired!
+    
+    Note over Pod1,Pod3: Time T=16 (New Election)
+    Pod2->>K8s: Try Acquire Lease
+    Pod3->>K8s: Try Acquire Lease
+    
+    K8s-->>Pod2: ✅ Success! You are leader
+    K8s-->>Pod3: ❌ Conflict (already taken)
+    
+    Note over Pod2: Pod2 is now leader
+    Pod2->>Pod2: Execute Job (00:30 - 01:00)
+    
+    Note over Pod2: Key: Pod2 checks idempotency<br/>Finds previous execution (by Pod1)<br/>Does NOT re-execute
