@@ -1,0 +1,13 @@
+flowchart TD
+  A[Traffic spike or peak load] --> B[Confirm user impact and SLO breach]
+  B --> C{Which domain spikes?}
+  C -->|Threads| D[Check thread pool saturation and dumps]
+  C -->|Database| E[Check slow queries and lock waits]
+  C -->|GC| F[Check GC pauses and allocation rate]
+  C -->|Dependency| G[Check downstream p95 and timeouts]
+  D --> H[Validate root cause with evidence]
+  E --> H
+  F --> H
+  G --> H
+  H --> I[Apply minimal safe fix]
+  I --> J[Prevent: alerts, load tests, capacity plan]
