@@ -117,5 +117,153 @@ Cons:
 - Backup/restore per shard
 - Schema migration strategy
 
-## 7) Quick Interview Answer (30 seconds)
+## 7) Architecture Diagram
+
+### Database Sharding - Hash-Based Sharding
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    DATABASE SHARDING SYSTEM                            │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐          │
+│  │  App Server  │     │  App Server  │     │  App Server  │          │
+│  │  Instance 1  │     │  Instance 2  │     │  Instance 3  │          │
+│  └──────┬───────┘     └──────┬───────┘     └──────┬───────┘          │
+│         │                    │                    │                   │
+│         │  userId: 12345     │                    │                   │
+│         │  hash(12345) % 3 = │2                   │                   │
+│         │                    │                    │                   │
+│         └────────────────────┼────────────────────┘                   │
+│                              │                                        │
+│                              ▼                                        │
+│  ┌──────────────────────────────────────────────────────┐             │
+│  │         Shard Router / Query Router                  │             │
+│  │         (ProxySQL / Vitess / App Logic)              │             │
+│  │                                                      │             │
+│  │  Logic:                                              │             │
+│  │  shardId = hash(shardKey) % numShards                │             │
+│  │  route query to Shard[shardId]                       │             │
+│  └──────────────────┬───────────────────────────────────┘             │
+│                     │                                                 │
+│         ┌───────────┼───────────┐                                     │
+│         │           │           │                                     │
+│         ▼           ▼           ▼                                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                              │
+│  │ Shard 1  │ │ Shard 2  │ │ Shard 3  │                              │
+│  │          │ │          │ │          │                              │
+│  │ Users:   │ │ Users:   │ │ Users:   │                              │
+│  │ hash % 3 │ │ hash % 3 │ │ hash % 3 │                              │
+│  │ = 0      │ │ = 1      │ │ = 2      │                              │
+│  │          │ │          │ │          │                              │
+│  │ 1M rows  │ │ 1M rows  │ │ 1M rows  │                              │
+│  └────┬─────┘ └────┬─────┘ └────┬─────┘                              │
+│       │            │            │                                     │
+│       │            │            │                                     │
+│       ▼            ▼            ▼                                     │
+│  [Replica]    [Replica]    [Replica]                                 │
+│  (Read-only)  (Read-only)  (Read-only)                               │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │  KEY FEATURES:                                           │         │
+│  │  • Even distribution via hash function                   │         │
+│  │  • Horizontal scalability (add more shards)              │         │
+│  │  • Each shard handles ~33% of traffic                    │         │
+│  │  • Cross-shard queries are expensive (scatter-gather)    │         │
+│  │  • Shard key (userId) must be in every query             │         │
+│  └──────────────────────────────────────────────────────────┘         │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Range-Based Sharding
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    RANGE-BASED SHARDING                                │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │              Shard Router                                │         │
+│  │                                                          │         │
+│  │  Query: userId = 2,500,000                               │         │
+│  │  Logic: Find range containing userId                     │         │
+│  │  Result: Route to Shard 3                                │         │
+│  └──────────────────┬───────────────────────────────────────┘         │
+│                     │                                                 │
+│         ┌───────────┼───────────┬───────────────┐                     │
+│         │           │           │               │                     │
+│         ▼           ▼           ▼               ▼                     │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐         │
+│  │  Shard 1   │ │  Shard 2   │ │  Shard 3   │ │  Shard 4   │         │
+│  │            │ │            │ │            │ │            │         │
+│  │ Users:     │ │ Users:     │ │ Users:     │ │ Users:     │         │
+│  │ 1-1M       │ │ 1M-2M      │ │ 2M-3M      │ │ 3M-4M      │         │
+│  │            │ │            │ │            │ │            │         │
+│  │ Pros:      │ │            │ │            │ │ Cons:      │         │
+│  │ • Range    │ │            │ │            │ │ • Hot      │         │
+│  │   queries  │ │            │ │            │ │   shards   │         │
+│  │   easy     │ │            │ │            │ │ • Skewed   │         │
+│  │            │ │            │ │            │ │   load     │         │
+│  └────────────┘ └────────────┘ └────────────┘ └────────────┘         │
+│                                                                        │
+│  Example: Most new users → Shard 4 becomes hotspot                    │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Directory-Based Sharding
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    DIRECTORY-BASED SHARDING                            │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │              Shard Router                                │         │
+│  │                                                          │         │
+│  │  Query: tenantId = "acme-corp"                           │         │
+│  │                                                          │         │
+│  │  1. Lookup tenantId in Directory                         │         │
+│  └──────────────────┬───────────────────────────────────────┘         │
+│                     │                                                 │
+│                     ▼                                                 │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │          Shard Directory (Lookup Table)                  │         │
+│  │          (Redis / SQL / ZooKeeper)                       │         │
+│  │  ┌────────────────────────────────────────┐              │         │
+│  │  │ tenantId        →  shardId             │              │         │
+│  │  ├────────────────────────────────────────┤              │         │
+│  │  │ acme-corp       →  shard-2             │              │         │
+│  │  │ startup-xyz     →  shard-1             │              │         │
+│  │  │ big-enterprise  →  shard-3 (dedicated) │              │         │
+│  │  └────────────────────────────────────────┘              │         │
+│  └──────────────────┬───────────────────────────────────────┘         │
+│                     │                                                 │
+│                     │ 2. Route to shard-2                             │
+│         ┌───────────┼───────────┐                                     │
+│         │           │           │                                     │
+│         ▼           ▼           ▼                                     │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐                              │
+│  │ Shard 1  │ │ Shard 2  │ │ Shard 3  │                              │
+│  │          │ │          │ │          │                              │
+│  │ 20 small │ │ 50 mid   │ │ 5 large  │                              │
+│  │ tenants  │ │ tenants  │ │ tenants  │                              │
+│  │          │ │ (acme-   │ │ (VIP)    │                              │
+│  │          │ │  corp)   │ │          │                              │
+│  └──────────┘ └──────────┘ └──────────┘                              │
+│                                                                        │
+│  BENEFITS:                                                            │
+│  • Flexible tenant placement (can move tenants easily)                │
+│  │  Dedicated shards for large customers                              │
+│  • Easy rebalancing without changing hash function                    │
+│                                                                        │
+│  CONS:                                                                │
+│  • Directory becomes a dependency (SPOF if not replicated)            │
+│  • Extra lookup on every query                                        │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+## 8) Quick Interview Answer (30 seconds)
 "Sharding splits a large database into smaller shards to scale. Common approaches are range, hash, directory, and geo/tenant-based sharding. Proxy-based sharding hides complexity, while app-level sharding gives more control. The right choice depends on query patterns, hot keys, and data residency needs."

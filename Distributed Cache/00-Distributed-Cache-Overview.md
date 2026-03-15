@@ -127,5 +127,113 @@ Cons:
 - Use circuit breakers to DB
 - Monitor hit rate, latency, and evictions
 
-## 7) Quick Interview Answer (30 seconds)
+## 7) Architecture Diagram
+
+### Distributed Cache - Cache-Aside Pattern
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    DISTRIBUTED CACHE SYSTEM                            │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌──────────────┐     ┌──────────────┐     ┌──────────────┐          │
+│  │  App Server  │     │  App Server  │     │  App Server  │          │
+│  │  Instance 1  │     │  Instance 2  │     │  Instance 3  │          │
+│  └──────┬───────┘     └──────┬───────┘     └──────┬───────┘          │
+│         │                    │                    │                   │
+│         │  1. Check Cache    │                    │                   │
+│         │     (Cache Miss)   │                    │                   │
+│         ▼                    ▼                    ▼                   │
+│  ┌──────────────────────────────────────────────────────┐             │
+│  │          Distributed Cache Layer                     │             │
+│  │              (Redis Cluster)                         │             │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐     │             │
+│  │  │ Node 1     │  │ Node 2     │  │ Node 3     │     │             │
+│  │  │ Hash Slot  │  │ Hash Slot  │  │ Hash Slot  │     │             │
+│  │  │ 0-5461     │  │ 5462-10922 │  │ 10923-16383│     │             │
+│  │  └────────────┘  └────────────┘  └────────────┘     │             │
+│  │                                                      │             │
+│  │  Features:                                           │             │
+│  │  • Consistent Hashing for distribution              │             │
+│  │  • Replication for availability                     │             │
+│  │  • TTL for auto-expiration                          │             │
+│  │  • LRU/LFU eviction policy                          │             │
+│  └──────────────────────┬───────────────────────────────┘             │
+│                         │                                             │
+│                         │ 2. On Cache Miss                            │
+│                         │    Read from DB                             │
+│                         ▼                                             │
+│  ┌──────────────────────────────────────────────────────┐             │
+│  │          Primary Database                            │             │
+│  │          (PostgreSQL / MySQL)                        │             │
+│  │  ┌────────────────────────────────────────┐          │             │
+│  │  │  User Data                             │          │             │
+│  │  │  Product Catalog                       │          │             │
+│  │  │  Hot Tables (frequently accessed)      │          │             │
+│  │  └────────────────────────────────────────┘          │             │
+│  └──────────────────────┬───────────────────────────────┘             │
+│                         │                                             │
+│                         │ 3. Write to Cache                           │
+│                         │    (with TTL)                               │
+│                         ▼                                             │
+│                  [Cache Updated]                                      │
+│                         │                                             │
+│                         │ 4. Return to App                            │
+│                         ▼                                             │
+│                    [Response]                                         │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Multi-Level Cache (L1 + L2)
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-LEVEL CACHE ARCHITECTURE                      │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │              Application Server Instance                 │         │
+│  │                                                          │         │
+│  │  ┌────────────────────────────────────────────┐          │         │
+│  │  │  L1 Cache (In-Memory / Local)              │          │         │
+│  │  │  • Caffeine / Guava Cache                  │          │         │
+│  │  │  • <1ms latency                            │          │         │
+│  │  │  • Small size (100MB-1GB per instance)     │          │         │
+│  │  │  • TTL: 30s - 5min                         │          │         │
+│  │  └──────────────────┬─────────────────────────┘          │         │
+│  │                     │                                    │         │
+│  │                     │ L1 Miss                            │         │
+│  └─────────────────────┼────────────────────────────────────┘         │
+│                        │                                              │
+│                        ▼                                              │
+│  ┌──────────────────────────────────────────────────────┐             │
+│  │  L2 Cache (Distributed / Shared)                     │             │
+│  │  • Redis / Memcached Cluster                         │             │
+│  │  • 1-5ms latency                                     │             │
+│  │  │  Large size (10GB-100GB)                          │             │
+│  │  • TTL: 5min - 24hours                               │             │
+│  │                                                      │             │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐     │             │
+│  │  │ Node 1     │  │ Node 2     │  │ Node 3     │     │             │
+│  │  └────────────┘  └────────────┘  └────────────┘     │             │
+│  └──────────────────────┬───────────────────────────────┘             │
+│                         │                                             │
+│                         │ L2 Miss                                     │
+│                         ▼                                             │
+│  ┌──────────────────────────────────────────────────────┐             │
+│  │          Primary Database                            │             │
+│  │          (PostgreSQL / MySQL)                        │             │
+│  │          50-200ms latency                            │             │
+│  └──────────────────────────────────────────────────────┘             │
+│                                                                        │
+│  BENEFITS:                                                            │
+│  • 99%+ L1 hit rate for hot data = sub-millisecond response          │
+│  • L2 reduces DB load for shared data across instances                │
+│  • Invalidation: Update L2, L1 expires naturally via TTL             │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+## 8) Quick Interview Answer (30 seconds)
 "A distributed cache keeps hot data in memory across nodes to reduce DB load and improve latency. The main approaches are cache-aside, read-through, write-through, write-back, and multi-level caches. Redis is the most common tech. Trade-offs depend on consistency needs, write volume, and failure tolerance."

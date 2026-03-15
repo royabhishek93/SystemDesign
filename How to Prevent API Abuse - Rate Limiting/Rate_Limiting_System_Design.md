@@ -1,0 +1,1023 @@
+# How to Prevent API Abuse - Rate Limiting
+
+## 1. What is Rate Limiting?
+
+**Rate limiting** is a technique to control the number of requests a user or client can make to an API within a specific time window.
+
+### Why Rate Limiting is Needed:
+
+- ✅ Prevent DDoS attacks
+- ✅ Prevent API abuse
+- ✅ Ensure fair usage
+- ✅ Protect server resources
+- ✅ Maintain service quality
+- ✅ Control costs (cloud resources)
+
+### Visual: Problem Without Rate Limiting
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                  WITHOUT RATE LIMITING (VULNERABLE)                    │
+└────────────────────────────────────────────────────────────────────────┘
+
+ATTACK SCENARIO: Malicious User Floods API
+───────────────────────────────────────────
+
+┌──────────────────┐
+│  Malicious User  │
+│                  │
+│  Script running: │
+│  while(true) {   │
+│    makeRequest() │
+│  }               │
+└────────┬─────────┘
+         │
+         │ 100,000 requests per second!
+         ↓
+┌────────────────────────────────────────┐
+│         API SERVER                     │
+│                                        │
+│  Receives:                             │
+│  100,000 req/s ────────────────→ 🔥   │
+│                                        │
+│  Problems:                             │
+│  ❌ CPU: 100%                          │
+│  ❌ Memory: Exhausted                  │
+│  ❌ Database: Overloaded               │
+│  ❌ Legitimate users: Blocked          │
+│  ❌ Server: CRASHED                    │
+│                                        │
+│  💥 SERVICE DOWN                       │
+└────────────────────────────────────────┘
+         │
+         ↓
+┌────────────────────────────────────────┐
+│    LEGITIMATE USERS                    │
+│                                        │
+│  ❌ Cannot access service              │
+│  ❌ Timeout errors                     │
+│  ❌ Poor experience                    │
+└────────────────────────────────────────┘
+
+
+WITH RATE LIMITING (PROTECTED)
+───────────────────────────────
+
+┌──────────────────┐
+│  Malicious User  │
+│                  │
+│  Attempts:       │
+│  100,000 req/s   │
+└────────┬─────────┘
+         │
+         │ Blocked after limit!
+         ↓
+┌────────────────────────────────────────┐
+│      RATE LIMITER                      │
+│                                        │
+│  Rule: Max 100 requests per minute     │
+│                                        │
+│  Request 1-100:   ✅ Allowed           │
+│  Request 101:     ❌ Rejected          │
+│  Response: 429 Too Many Requests       │
+│                                        │
+│  Attacker blocked! ✅                  │
+└────────┬───────────────────────────────┘
+         │
+         │ Only legitimate traffic
+         ↓
+┌────────────────────────────────────────┐
+│         API SERVER                     │
+│                                        │
+│  Receives:                             │
+│  Normal traffic (managed)              │
+│                                        │
+│  Status:                               │
+│  ✅ CPU: 30%                           │
+│  ✅ Memory: Normal                     │
+│  ✅ Database: Healthy                  │
+│  ✅ Service: Available                 │
+│                                        │
+│  ✅ SERVICE RUNNING SMOOTHLY           │
+└────────────────────────────────────────┘
+```
+
+## 2. Common Rate Limiting Algorithms
+
+### Algorithm 1: Token Bucket
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      TOKEN BUCKET ALGORITHM                            │
+└────────────────────────────────────────────────────────────────────────┘
+
+CONCEPT
+───────
+• Bucket holds tokens
+• Each request consumes 1 token
+• Tokens refill at constant rate
+• If no tokens available → request rejected
+
+VISUAL REPRESENTATION
+─────────────────────
+
+Bucket Configuration:
+• Capacity: 10 tokens
+• Refill rate: 2 tokens per second
+
+Time: T0 (Start)
+┌──────────────────────┐
+│      BUCKET          │
+│                      │
+│  🪙 🪙 🪙 🪙 🪙      │
+│  🪙 🪙 🪙 🪙 🪙      │
+│                      │
+│  Tokens: 10/10       │
+│  Status: Full ✅     │
+└──────────────────────┘
+
+
+Time: T1 (3 requests arrive)
+┌──────────────────────┐
+│      BUCKET          │
+│                      │
+│  🪙 🪙 🪙 🪙 🪙      │
+│  🪙 🪙              │
+│                      │
+│  Tokens: 7/10        │
+│  Consumed: 3         │
+│  Allowed: ✅ Yes     │
+└──────────────────────┘
+
+
+Time: T2 (+1 second, refill)
+┌──────────────────────┐
+│      BUCKET          │
+│                      │
+│  🪙 🪙 🪙 🪙 🪙      │
+│  🪙 🪙 🪙 🪙         │
+│                      │
+│  Tokens: 9/10        │
+│  Refilled: +2        │
+└──────────────────────┘
+
+
+Time: T3 (10 requests arrive)
+┌──────────────────────┐
+│      BUCKET          │
+│                      │
+│                      │
+│                      │
+│                      │
+│  Tokens: 0/10        │
+│  9 allowed, 1 DENIED │
+└──────────────────────┘
+
+
+REQUEST FLOW
+────────────
+
+Request arrives
+    │
+    ↓
+┌─────────────────┐
+│ Check bucket    │
+│ Tokens > 0?     │
+└────┬────────┬───┘
+     │        │
+   YES        NO
+     │        │
+     ↓        ↓
+┌─────────┐ ┌──────────────┐
+│ Allow   │ │ Reject       │
+│ Request │ │ Request      │
+│         │ │              │
+│ Remove  │ │ Return 429   │
+│ 1 token │ │ Too Many     │
+│         │ │ Requests     │
+└─────────┘ └──────────────┘
+
+
+EXAMPLE CODE (Pseudocode)
+──────────────────────────
+
+class TokenBucket {
+    tokens: 10
+    capacity: 10
+    refillRate: 2  // per second
+    lastRefillTime: now()
+
+    function allowRequest() {
+        // Refill tokens
+        now = currentTime()
+        elapsed = now - lastRefillTime
+        tokensToAdd = elapsed * refillRate
+        tokens = min(capacity, tokens + tokensToAdd)
+        lastRefillTime = now
+
+        // Check if request allowed
+        if (tokens >= 1) {
+            tokens -= 1
+            return true  // Allow
+        } else {
+            return false  // Reject
+        }
+    }
+}
+
+
+PROS & CONS
+───────────
+
+✅ PROS:
+• Allows burst traffic (up to bucket capacity)
+• Memory efficient
+• Smooth rate limiting
+
+❌ CONS:
+• Can allow large bursts if bucket is full
+• Complex to implement correctly
+```
+
+### Algorithm 2: Leaky Bucket
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      LEAKY BUCKET ALGORITHM                            │
+└────────────────────────────────────────────────────────────────────────┘
+
+CONCEPT
+───────
+• Requests enter bucket (queue)
+• Requests processed at constant rate (leak)
+• If bucket full → new requests rejected
+• Smooths out burst traffic
+
+VISUAL REPRESENTATION
+─────────────────────
+
+Bucket Configuration:
+• Capacity: 10 requests
+• Leak rate: 2 requests per second
+
+Time: T0 (3 requests arrive quickly)
+                    Requests arrive ↓
+                    ┌──┐ ┌──┐ ┌──┐
+                    │R1│ │R2│ │R3│
+                    └┬─┘ └┬─┘ └┬─┘
+                     │    │    │
+                     ↓    ↓    ↓
+        ┌────────────────────────────┐
+        │      BUCKET (Queue)        │
+        │                            │
+        │  [R1] [R2] [R3]            │
+        │                            │
+        │  Size: 3/10                │
+        └──────────┬─────────────────┘
+                   │
+                   │ Leak: 2 req/s
+                   ↓
+            ┌──────────────┐
+            │  Processing  │
+            │  [R1] [R2]   │
+            └──────────────┘
+
+
+Time: T1 (+1 second)
+        ┌────────────────────────────┐
+        │      BUCKET (Queue)        │
+        │                            │
+        │  [R3]                      │  ← R1, R2 leaked
+        │                            │
+        │  Size: 1/10                │
+        └──────────┬─────────────────┘
+                   │
+                   │ Leak: 2 req/s
+                   ↓
+            ┌──────────────┐
+            │  Processing  │
+            │  [R3]        │
+            └──────────────┘
+
+
+Time: T2 (15 requests arrive suddenly!)
+                    Burst of requests ↓
+        ┌────────────────────────────┐
+        │      BUCKET (Queue)        │
+        │                            │
+        │  [R4][R5][R6][R7][R8]      │
+        │  [R9][R10][R11][R12][R13]  │
+        │                            │
+        │  Size: 10/10 (FULL)        │
+        └────────────────────────────┘
+                   │
+                   │ Remaining 5 requests
+                   ↓
+            ❌ REJECTED (429)
+
+
+COMPARISON: TOKEN VS LEAKY BUCKET
+──────────────────────────────────
+
+BURST TRAFFIC HANDLING:
+
+Token Bucket:
+Time 0s: 10 requests → All allowed immediately ✅
+(Empties bucket, then waits for refill)
+
+┌────────┐
+│10 req  │ ──→ ✅ All allowed instantly
+└────────┘     (if bucket full)
+
+Leaky Bucket:
+Time 0s: 10 requests → Queued, processed at 2/s
+Time 1s: 2 processed
+Time 2s: 2 processed
+Time 3s: 2 processed
+Time 4s: 2 processed
+Time 5s: 2 processed
+
+┌────────┐
+│10 req  │ ──→ Queued → Processed gradually
+└────────┘            (2 per second)
+
+
+EXAMPLE CODE (Pseudocode)
+──────────────────────────
+
+class LeakyBucket {
+    queue: []
+    capacity: 10
+    leakRate: 2  // per second
+    lastLeakTime: now()
+
+    function allowRequest(request) {
+        // Leak (process) requests
+        now = currentTime()
+        elapsed = now - lastLeakTime
+        requestsToLeak = floor(elapsed * leakRate)
+
+        for (i = 0; i < requestsToLeak; i++) {
+            if (queue.length > 0) {
+                queue.dequeue()
+            }
+        }
+        lastLeakTime = now
+
+        // Check if request can be added
+        if (queue.length < capacity) {
+            queue.enqueue(request)
+            return true  // Allow
+        } else {
+            return false  // Reject (bucket full)
+        }
+    }
+}
+
+
+PROS & CONS
+───────────
+
+✅ PROS:
+• Smooth, constant output rate
+• Good for preventing sudden spikes
+• Predictable behavior
+
+❌ CONS:
+• Can reject requests even if system not busy
+• Added latency (queueing)
+• Memory overhead for queue
+```
+
+### Algorithm 3: Fixed Window Counter
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    FIXED WINDOW COUNTER ALGORITHM                      │
+└────────────────────────────────────────────────────────────────────────┘
+
+CONCEPT
+───────
+• Divide time into fixed windows (e.g., 1 minute)
+• Count requests in current window
+• Reset counter when window expires
+• Simple but has edge case issues
+
+VISUAL REPRESENTATION
+─────────────────────
+
+Configuration:
+• Window: 1 minute
+• Limit: 100 requests per minute
+
+NORMAL CASE:
+────────────
+
+Minute 1 (00:00 - 00:59)
+┌────────────────────────────────────────┐
+│  Window: 00:00 - 00:59                 │
+│  ────────────────────────────────────  │
+│                                        │
+│  Requests: ⚫⚫⚫⚫⚫⚫⚫⚫⚫⚫ (50)          │
+│                                        │
+│  Counter: 50/100                       │
+│  Status: ✅ Allowed                    │
+└────────────────────────────────────────┘
+
+Minute 2 (01:00 - 01:59)
+┌────────────────────────────────────────┐
+│  Window: 01:00 - 01:59                 │
+│  ────────────────────────────────────  │
+│                                        │
+│  Counter: RESET to 0                   │
+│                                        │
+│  Requests: ⚫⚫⚫⚫⚫⚫ (30)              │
+│                                        │
+│  Counter: 30/100                       │
+│  Status: ✅ Allowed                    │
+└────────────────────────────────────────┘
+
+
+EDGE CASE PROBLEM (Double Rate!)
+─────────────────────────────────
+
+Limit: 100 requests per minute
+
+Window 1                 Window 2
+00:00 ──────── 00:59    01:00 ──────── 01:59
+                 │       │
+           00:30 ↓       ↓ 01:30
+
+┌──────────────────┐   ┌──────────────────┐
+│  Window 1        │   │  Window 2        │
+│  00:00 - 00:59   │   │  01:00 - 01:59   │
+│                  │   │                  │
+│  First 30 mins:  │   │  First 30 mins:  │
+│  0 requests      │   │  100 requests ❌ │
+│                  │   │                  │
+│  Last 30 mins:   │   │                  │
+│  100 requests ✅ │   │                  │
+│                  │   │                  │
+│  Total: 100 ✅   │   │  Total: 100 ✅   │
+└──────────────────┘   └──────────────────┘
+
+Problem:
+Between 00:30 and 01:30 (1 minute window):
+• 00:30 - 00:59: 100 requests
+• 01:00 - 01:30: 100 requests
+• Total: 200 requests in 1 minute! ❌
+• DOUBLE the allowed rate!
+
+Timeline:
+00:00  00:30  00:59  01:00  01:30  01:59
+  │─────│──────│──────│──────│──────│
+  │     └──────┴──────┘      │      │
+  │     200 requests in       │      │
+  │     this 1 minute! ❌     │      │
+  │                           │      │
+  └───────── Window 1 ────────┘      │
+          └───────── Window 2 ────────┘
+
+
+IMPLEMENTATION
+──────────────
+
+class FixedWindowCounter {
+    windowStart: currentMinute()
+    counter: 0
+    limit: 100
+
+    function allowRequest() {
+        currentWindow = currentMinute()
+
+        // New window? Reset counter
+        if (currentWindow != windowStart) {
+            windowStart = currentWindow
+            counter = 0
+        }
+
+        // Check limit
+        if (counter < limit) {
+            counter++
+            return true  // Allow
+        } else {
+            return false  // Reject
+        }
+    }
+}
+
+REDIS IMPLEMENTATION:
+
+key: "rate_limit:user123:2024-03-15-10:30"
+value: counter (incremented on each request)
+ttl: 60 seconds (auto-delete after window)
+
+Commands:
+INCR rate_limit:user123:2024-03-15-10:30
+EXPIRE rate_limit:user123:2024-03-15-10:30 60
+GET rate_limit:user123:2024-03-15-10:30
+
+
+PROS & CONS
+───────────
+
+✅ PROS:
+• Very simple to implement
+• Memory efficient
+• Fast (just increment counter)
+• Works well with Redis
+
+❌ CONS:
+• Edge case: Can allow 2x traffic at window boundaries
+• Not smooth (sudden reset)
+• Burst traffic at window start
+```
+
+### Algorithm 4: Sliding Window Log
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    SLIDING WINDOW LOG ALGORITHM                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+CONCEPT
+───────
+• Store timestamp of each request
+• Count requests in last N seconds/minutes
+• Slide window continuously (not fixed)
+• Most accurate, but memory intensive
+
+VISUAL REPRESENTATION
+─────────────────────
+
+Configuration:
+• Window: 1 minute (60 seconds)
+• Limit: 5 requests per minute
+• Current time: 10:00:50
+
+Request Log (with timestamps):
+┌────────────────────────────────────────────────────────┐
+│  Timestamp        Request ID                           │
+├────────────────────────────────────────────────────────┤
+│  10:00:10         R1  ← Too old (outside window)       │
+│  10:00:25         R2  ← Too old (outside window)       │
+│  09:59:55         R3  ✅ In window (55s ago)           │
+│  10:00:00         R4  ✅ In window (50s ago)           │
+│  10:00:15         R5  ✅ In window (35s ago)           │
+│  10:00:30         R6  ✅ In window (20s ago)           │
+│  10:00:45         R7  ✅ In window (5s ago)            │
+└────────────────────────────────────────────────────────┘
+
+SLIDING WINDOW (Current time: 10:00:50)
+────────────────────────────────────────
+
+                         Now
+                          ↓
+    09:59:50 ──────────────────────── 10:00:50
+    │                                      │
+    └────────── 60 second window ──────────┘
+
+Timeline:
+09:59:50    10:00:00    10:00:15    10:00:30    10:00:45    10:00:50
+    │           │           │           │           │           │
+    └───────────┼───────────┼───────────┼───────────┼───────────┤
+        ⚫       ⚫           ⚫           ⚫           ⚫          Now
+        R3      R4          R5          R6          R7
+
+Requests in window: 5 (R3, R4, R5, R6, R7)
+Limit: 5
+Status: At limit (next request will be rejected)
+
+
+NEW REQUEST ARRIVES (10:00:50)
+───────────────────────────────
+
+Step 1: Remove old entries
+Remove timestamps < (10:00:50 - 60s) = 09:59:50
+→ R1 removed (10:00:10)
+→ R2 removed (10:00:25)
+
+Step 2: Count requests in window
+Remaining: R3, R4, R5, R6, R7 = 5 requests
+
+Step 3: Check limit
+5 >= 5 → Reject new request ❌
+Return 429 Too Many Requests
+
+
+TIME ADVANCES: 10:01:00
+───────────────────────
+
+New window:
+    10:00:00 ──────────────────────── 10:01:00
+    │                                      │
+    └────────── 60 second window ──────────┘
+
+Remove old entries:
+• R3 (09:59:55) removed
+• R4 (10:00:00) kept
+
+Requests in window: 4 (R4, R5, R6, R7)
+Limit: 5
+Status: 1 slot available ✅
+
+
+COMPARISON WITH FIXED WINDOW
+─────────────────────────────
+
+Fixed Window (Has edge case):
+Window 1: 10:00:00 - 10:00:59
+Window 2: 10:01:00 - 10:01:59
+                  │
+        Boundary reset here
+        (can cause 2x rate)
+
+Sliding Window (No edge case):
+10:00:00 ────────────────── 10:01:00
+         ↓
+    10:00:30 ────────────────── 10:01:30
+                   ↓
+            10:00:45 ────────────────── 10:01:45
+                          ↓
+                      Continuous sliding
+                      (accurate rate limiting)
+
+
+IMPLEMENTATION
+──────────────
+
+class SlidingWindowLog {
+    requestLog: []  // Array of timestamps
+    limit: 5
+    windowSize: 60  // seconds
+
+    function allowRequest() {
+        now = currentTime()
+        windowStart = now - windowSize
+
+        // Remove old entries
+        requestLog = requestLog.filter(
+            timestamp => timestamp > windowStart
+        )
+
+        // Check limit
+        if (requestLog.length < limit) {
+            requestLog.push(now)
+            return true  // Allow
+        } else {
+            return false  // Reject
+        }
+    }
+}
+
+REDIS IMPLEMENTATION:
+
+Use Sorted Set (ZSET):
+• Score: timestamp
+• Member: request ID
+
+Commands:
+# Add request
+ZADD rate_limit:user123 <timestamp> <request_id>
+
+# Remove old entries
+ZREMRANGEBYSCORE rate_limit:user123 0 <window_start>
+
+# Count requests in window
+ZCOUNT rate_limit:user123 <window_start> <now>
+
+# Set expiry
+EXPIRE rate_limit:user123 <window_size>
+
+
+PROS & CONS
+───────────
+
+✅ PROS:
+• Most accurate rate limiting
+• No edge cases (continuous sliding)
+• Precise control
+
+❌ CONS:
+• High memory usage (store all timestamps)
+• Slower (need to filter old entries)
+• Expensive for high traffic (millions of requests)
+```
+
+## 3. Complete Rate Limiting Architecture
+
+### Visual: Production System
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│              PRODUCTION RATE LIMITING ARCHITECTURE                     │
+└────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                      CLIENT LAYER                           │
+│                                                             │
+│  ┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐          │
+│  │User A  │  │User B  │  │User C  │  │User N  │          │
+│  │API Key │  │API Key │  │API Key │  │API Key │          │
+│  └───┬────┘  └───┬────┘  └───┬────┘  └───┬────┘          │
+└──────┼───────────┼───────────┼───────────┼────────────────┘
+       │           │           │           │
+       │ Requests  │ Requests  │ Requests  │ Requests
+       ↓           ↓           ↓           ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   LOAD BALANCER                             │
+│                   (NGINX / AWS ELB)                         │
+│                                                             │
+│  • Distribute traffic                                       │
+│  • Initial rate limiting (basic)                            │
+│  • SSL termination                                          │
+└────┬──────────────┬──────────────┬──────────────┬──────────┘
+     │              │              │              │
+     ↓              ↓              ↓              ↓
+┌─────────────────────────────────────────────────────────────┐
+│               RATE LIMITING MIDDLEWARE                      │
+│               (Application Layer)                           │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  RATE LIMITER                                       │   │
+│  │                                                     │   │
+│  │  1. Extract identifier (API key, IP, User ID)      │   │
+│  │  2. Check rate limit in Redis                      │   │
+│  │  3. Increment counter                               │   │
+│  │  4. Allow or Reject                                 │   │
+│  └─────────────────────────────────────────────────────┘   │
+└────┬──────────────┬──────────────┬──────────────┬──────────┘
+     │              │              │              │
+     │ Query Redis  │ Query Redis  │ Query Redis  │
+     ↓              ↓              ↓              ↓
+┌─────────────────────────────────────────────────────────────┐
+│                    REDIS CLUSTER                            │
+│                    (Distributed Cache)                      │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │  Rate Limit Data:                                    │  │
+│  │                                                      │  │
+│  │  user:123:api_calls:2024-03-15-10:30 → 45          │  │
+│  │  user:456:api_calls:2024-03-15-10:30 → 89          │  │
+│  │  user:789:api_calls:2024-03-15-10:30 → 100 ← Limit!│  │
+│  │                                                      │  │
+│  │  TTL: Auto-expire after window                      │  │
+│  └──────────────────────────────────────────────────────┘  │
+│                                                             │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
+│  │ Redis    │  │ Redis    │  │ Redis    │                 │
+│  │ Node 1   │  │ Node 2   │  │ Node 3   │                 │
+│  │ (Master) │  │ (Master) │  │ (Master) │                 │
+│  └────┬─────┘  └────┬─────┘  └────┬─────┘                 │
+│       │             │             │                        │
+│       ↓             ↓             ↓                        │
+│  ┌──────────┐  ┌──────────┐  ┌──────────┐                 │
+│  │ Replica  │  │ Replica  │  │ Replica  │                 │
+│  └──────────┘  └──────────┘  └──────────┘                 │
+└─────────────────────────────────────────────────────────────┘
+     │                                │
+     │ Pass if under limit            │ Reject if over limit
+     ↓                                ↓
+┌──────────────────────┐       ┌──────────────────────┐
+│   API SERVERS        │       │   RESPONSE           │
+│                      │       │                      │
+│  Process request     │       │  Status: 429         │
+│  Return data         │       │  Too Many Requests   │
+│                      │       │                      │
+│  Status: 200 OK      │       │  Headers:            │
+│  Response: {...}     │       │  X-RateLimit-Limit:  │
+│                      │       │    100               │
+│                      │       │  X-RateLimit-        │
+│                      │       │    Remaining: 0      │
+│                      │       │  X-RateLimit-Reset:  │
+│                      │       │    1647345600        │
+│                      │       │  Retry-After: 60     │
+└──────────────────────┘       └──────────────────────┘
+
+
+REQUEST FLOW (Step-by-Step)
+────────────────────────────
+
+User Request:
+GET /api/users
+Authorization: Bearer token123
+
+Step 1: Extract Identifier
+┌─────────────────────────┐
+│ Rate Limiter            │
+│                         │
+│ Extract from:           │
+│ • API Key (token123)    │
+│ • User ID               │
+│ • IP Address            │
+│                         │
+│ Identifier: user:123    │
+└───────┬─────────────────┘
+        │
+        ↓
+
+Step 2: Build Redis Key
+┌─────────────────────────────────────┐
+│ Create key:                         │
+│                                     │
+│ Key format:                         │
+│ rate_limit:{identifier}:{window}    │
+│                                     │
+│ Example:                            │
+│ rate_limit:user:123:2024-03-15-10:30│
+└───────┬─────────────────────────────┘
+        │
+        ↓
+
+Step 3: Check & Increment in Redis
+┌─────────────────────────────────────┐
+│ Redis Commands:                     │
+│                                     │
+│ 1. GET rate_limit:user:123:...      │
+│    → Current: 45                    │
+│                                     │
+│ 2. Check: 45 < 100? ✅              │
+│                                     │
+│ 3. INCR rate_limit:user:123:...     │
+│    → New value: 46                  │
+│                                     │
+│ 4. EXPIRE key 60                    │
+│    → Auto-delete after 60s          │
+│                                     │
+│ Decision: ALLOW ✅                  │
+└───────┬─────────────────────────────┘
+        │
+        ↓
+
+Step 4: Add Rate Limit Headers
+┌─────────────────────────────────────┐
+│ Response Headers:                   │
+│                                     │
+│ X-RateLimit-Limit: 100              │
+│ X-RateLimit-Remaining: 54           │
+│ X-RateLimit-Reset: 1647345600       │
+│                                     │
+│ (Tells client their limits)         │
+└───────┬─────────────────────────────┘
+        │
+        ↓
+
+Step 5: Forward to API
+┌─────────────────────────────────────┐
+│ API Server                          │
+│                                     │
+│ Process request                     │
+│ Return data                         │
+│                                     │
+│ Status: 200 OK                      │
+└─────────────────────────────────────┘
+```
+
+## 4. Multi-Tier Rate Limiting
+
+### Visual: Different Limits for Different Tiers
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                   MULTI-TIER RATE LIMITING                             │
+└────────────────────────────────────────────────────────────────────────┘
+
+PRICING TIERS
+─────────────
+
+┌───────────────────────────────────────────────────────────┐
+│  FREE TIER                                                │
+│  • 100 requests per hour                                  │
+│  • Basic features only                                    │
+│  • No SLA                                                 │
+│                                                           │
+│  User: free_user_123                                      │
+│  Limit: rate_limit:free_user_123 → 100/hour              │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│  BASIC TIER ($29/month)                                   │
+│  • 10,000 requests per hour                               │
+│  • All features                                           │
+│  • Email support                                          │
+│                                                           │
+│  User: basic_user_456                                     │
+│  Limit: rate_limit:basic_user_456 → 10,000/hour          │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│  PRO TIER ($99/month)                                     │
+│  • 100,000 requests per hour                              │
+│  • Priority support                                       │
+│  • Custom integrations                                    │
+│                                                           │
+│  User: pro_user_789                                       │
+│  Limit: rate_limit:pro_user_789 → 100,000/hour           │
+└───────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────┐
+│  ENTERPRISE TIER (Custom pricing)                         │
+│  • Unlimited requests                                     │
+│  • Dedicated support                                      │
+│  • Custom SLA                                             │
+│                                                           │
+│  User: enterprise_user_999                                │
+│  Limit: No rate limiting (or very high limit)             │
+└───────────────────────────────────────────────────────────┘
+
+
+RATE LIMITER LOGIC
+──────────────────
+
+function getRateLimit(user) {
+    switch(user.tier) {
+        case 'free':
+            return {
+                requests: 100,
+                window: '1 hour'
+            }
+        case 'basic':
+            return {
+                requests: 10000,
+                window: '1 hour'
+            }
+        case 'pro':
+            return {
+                requests: 100000,
+                window: '1 hour'
+            }
+        case 'enterprise':
+            return {
+                requests: Infinity,  // No limit
+                window: null
+            }
+    }
+}
+
+
+VISUAL COMPARISON
+─────────────────
+
+Requests per hour capacity:
+
+Free       Basic      Pro        Enterprise
+100        10,000     100,000    Unlimited
+│          │          │          │
+▓          ▓▓▓▓▓▓     ▓▓▓▓▓▓▓▓▓  ▓▓▓▓▓▓▓▓▓▓▓▓
+│          │          │          │
+└──────────┴──────────┴──────────┘
+  1x       100x       1000x      ∞
+
+
+RATE LIMIT EXCEEDED RESPONSE
+─────────────────────────────
+
+Free Tier User (Exceeded 100 requests):
+┌─────────────────────────────────────────────────┐
+│  HTTP/1.1 429 Too Many Requests                 │
+│                                                 │
+│  {                                              │
+│    "error": "Rate limit exceeded",              │
+│    "message": "You've reached your limit of 100 │
+│                requests per hour",              │
+│    "tier": "free",                              │
+│    "upgrade_url": "/pricing",                   │
+│    "retry_after": 3600                          │
+│  }                                              │
+│                                                 │
+│  Suggestion: Upgrade to Basic tier for 10,000  │
+│              requests per hour                  │
+└─────────────────────────────────────────────────┘
+```
+
+## 5. System Design Interview Answer
+
+### Short Answer (3-4 minutes):
+
+> **Rate limiting** is a technique to control the number of API requests a client can make within a time window to prevent abuse and ensure fair usage.
+>
+> The most common algorithms are:
+> 1. **Token Bucket** - Allows burst traffic, tokens refill at constant rate
+> 2. **Fixed Window Counter** - Simple but has edge case where 2x rate is possible at window boundaries
+> 3. **Sliding Window Log** - Most accurate but memory intensive as it stores all request timestamps
+>
+> In production, we typically implement rate limiting using Redis with a middleware layer that:
+> 1. Extracts identifier (API key, user ID, IP address)
+> 2. Checks counter in Redis (e.g., `rate_limit:user:123:2024-03-15-10:30`)
+> 3. Increments counter if under limit
+> 4. Returns 429 Too Many Requests if over limit
+> 5. Sets TTL on Redis key to auto-expire after window
+>
+> **Multi-tier rate limiting** is common where different pricing tiers get different limits (Free: 100/hour, Pro: 100,000/hour).
+>
+> Response includes headers like `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` to inform clients about their limits.
+>
+> For distributed systems, Redis cluster ensures consistency across multiple application servers, and we can implement both per-user and per-IP rate limits simultaneously.
+
+---
+
+## Key Technologies:
+- **Redis**: Fast, distributed rate limit storage
+- **NGINX**: Load balancer with built-in rate limiting
+- **Token Bucket**: Most common algorithm
+- **API Gateway**: Centralized rate limiting (AWS API Gateway, Kong)

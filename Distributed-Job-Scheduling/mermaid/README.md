@@ -2,6 +2,12 @@
 
 This directory contains visual diagrams to support the distributed job scheduling guide. All diagrams include technology stack logos and component labels for easy understanding.
 
+**Note**: ASCII block diagram alternatives are available in:
+- [LEADER-ELECTION-VISUAL-GUIDE.md](LEADER-ELECTION-VISUAL-GUIDE.md) - Interview-ready ASCII diagrams for all 5 leader election approaches
+- The main documentation files in the parent directory
+
+The PNG files in this directory remain useful for presentations and detailed visual reference.
+
 ## 🏗️ Architecture Diagrams (With Component Logos)
 
 ### A1. [architecture-redis-lock.mmd](architecture-redis-lock.mmd) | [📸 PNG](architecture-redis-lock.png)

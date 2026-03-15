@@ -39,7 +39,7 @@ Real incidents solved:
 
 ## Diagrams
 
-- [mermaid/diagnosis-flow.mmd](mermaid/diagnosis-flow.mmd) — Visual workflow for diagnosis
+The diagnosis flow diagram is included in the [Interview-Basics/00-Overview.md](Interview-Basics/00-Overview.md) file.
 
 ## How to use for interviews
 

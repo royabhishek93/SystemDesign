@@ -23,7 +23,79 @@ Typical question:
 - **Fix**: apply the smallest safe change first
 - **Prevent**: add guardrails and capacity planning
 
-See the diagnosis flow diagram: [Spring-Boot-Performance-Triage/mermaid/diagnosis-flow.mmd](Spring-Boot-Performance-Triage/mermaid/diagnosis-flow.mmd)
+### Diagnosis Flow Diagram
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│          SPRING BOOT PERFORMANCE TRIAGE WORKFLOW                       │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│  START: Traffic spike or peak load detected                           │
+│  │                                                                     │
+│  ▼                                                                     │
+│  ┌──────────────────────────────────────────┐                         │
+│  │ 1. Confirm user impact and SLO breach    │                         │
+│  │    • Check p95/p99 latency               │                         │
+│  │    • Check error rate                    │                         │
+│  │    • Identify affected endpoints         │                         │
+│  └────────────────┬─────────────────────────┘                         │
+│                   │                                                    │
+│                   ▼                                                    │
+│  ┌──────────────────────────────────────────┐                         │
+│  │ 2. Which domain is spiking?              │                         │
+│  │    (Bottleneck Classification)           │                         │
+│  └────────┬─────────────────────────────────┘                         │
+│           │                                                            │
+│      ┌────┴────┬────────┬───────────┬──────────┐                      │
+│      │         │        │           │          │                      │
+│      ▼         ▼        ▼           ▼          ▼                      │
+│  ┌────────┐ ┌────┐  ┌─────┐   ┌─────────┐ ┌───────┐                  │
+│  │Threads │ │ DB │  │ GC  │   │Dependency│ │Network│                  │
+│  └───┬────┘ └──┬─┘  └──┬──┘   └────┬────┘ └───┬───┘                  │
+│      │         │       │           │          │                       │
+│      ▼         ▼       ▼           ▼          ▼                       │
+│  ┌────────┐ ┌────────┐ ┌──────┐ ┌────────┐ ┌────────┐                │
+│  │ Check  │ │ Check  │ │Check │ │ Check  │ │ Check  │                │
+│  │thread  │ │slow    │ │GC    │ │down-   │ │timeout │                │
+│  │pool    │ │queries │ │pauses│ │stream  │ │& conn  │                │
+│  │satur-  │ │& lock  │ │& mem │ │p95     │ │pool    │                │
+│  │ation   │ │waits   │ │alloc │ │& time  │ │exhaust │                │
+│  │& dumps │ │        │ │rate  │ │outs    │ │        │                │
+│  └───┬────┘ └───┬────┘ └───┬──┘ └───┬────┘ └───┬────┘                │
+│      │          │          │        │          │                      │
+│      └──────────┴──────────┴────────┴──────────┘                      │
+│                             │                                          │
+│                             ▼                                          │
+│  ┌──────────────────────────────────────────┐                         │
+│  │ 3. Validate root cause with evidence     │                         │
+│  │    • Correlate metrics with timeline     │                         │
+│  │    • Reproduce in test if possible       │                         │
+│  │    • Document hypothesis                 │                         │
+│  └────────────────┬─────────────────────────┘                         │
+│                   │                                                    │
+│                   ▼                                                    │
+│  ┌──────────────────────────────────────────┐                         │
+│  │ 4. Apply minimal safe fix                │                         │
+│  │    • Add index (if DB bottleneck)        │                         │
+│  │    • Increase timeout (if dependency)    │                         │
+│  │    • Tune connection pool                │                         │
+│  │    • Add caching layer                   │                         │
+│  │    • Enable circuit breaker              │                         │
+│  └────────────────┬─────────────────────────┘                         │
+│                   │                                                    │
+│                   ▼                                                    │
+│  ┌──────────────────────────────────────────┐                         │
+│  │ 5. Prevent recurrence                    │                         │
+│  │    • Add alerts on early warning signals │                         │
+│  │    • Run load tests regularly            │                         │
+│  │    • Create capacity plan                │                         │
+│  │    • Document in runbook                 │                         │
+│  └──────────────────────────────────────────┘                         │
+│                                                                        │
+│  END: System restored, incident documented                            │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
 
 ## Key deliverables in your answer
 - A **repeatable workflow**, not just a list of tools

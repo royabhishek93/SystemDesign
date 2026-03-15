@@ -1,76 +1,164 @@
-## Interview-Ready Diagram (Mermaid)
+## Interview-Ready System Architecture
 
-Paste this into Mermaid Live Editor (https://mermaid.live) or any Markdown viewer that supports Mermaid to render a clean diagram.
+### Video Upload & Processing System - Complete Flow
 
-```mermaid
-flowchart TB
-        %% Nodes
-        A[Web / App]
-        B[API Gateway\nAuth + Rate Limit]
-        C[Upload Service\nStateless\nReturns: uploadId, presigned URLs, multipart info]
-        D[(Object Storage)\nRaw Videos]
-        E[Event Queue\nKafka / SQS]
-        F[Video Processing Pipeline\nTranscode 144p–1080p\nThumbnails\nCodec check\nMalware scan\nContent ID]
-        G[(Object Storage)\nProcessed Videos]
-        H[CDN]
-        M[Metadata Service]
-        N[(Metadata DB)\nSQL]
-        X[Dead Letter Queue]
-        Y[Alerts + Manual Ops]
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        CONTROL PLANE (Low QPS - Metadata)                       │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌──────────────┐  1. Upload Init    ┌─────────────────┐                      │
+│  │   Web / App  │ ──────────────────▶ │  API Gateway    │                      │
+│  │   (Client)   │                     │  Auth + Rate    │                      │
+│  └──────────────┘                     │  Limiting       │                      │
+│         │                              └────────┬────────┘                      │
+│         │                                       │                               │
+│         │  2. Session Response                  ▼                               │
+│         │     (uploadId + URLs)        ┌─────────────────┐                      │
+│         │ ◀───────────────────────────  │ Upload Service  │                      │
+│         │                               │   (Stateless)   │                      │
+│         │                               │ Returns:        │                      │
+│         │                               │ - uploadId      │                      │
+│         │                               │ - presigned URLs│                      │
+│         │                               │ - multipart info│                      │
+│         │                               └─────────────────┘                      │
+│         │                                                                        │
+└─────────┼────────────────────────────────────────────────────────────────────────┘
+          │
+┌─────────┼────────────────────────────────────────────────────────────────────────┐
+│         │              DATA PLANE (High Throughput - Bytes)                      │
+├─────────┼────────────────────────────────────────────────────────────────────────┤
+│         │                                                                        │
+│         │ 3. Multipart Upload                                                   │
+│         │    (Direct, with Resume)                                              │
+│         ▼                                                                        │
+│  ┌──────────────────┐                                                           │
+│  │ Object Storage   │  4. Upload Complete Event                                 │
+│  │  (Raw Videos)    │ ─────────────────────────────────▶ ┌──────────────────┐  │
+│  │   S3 / GCS       │                                    │  Event Queue     │  │
+│  └──────────────────┘                                    │  Kafka / SQS     │  │
+│                                                           └────────┬─────────┘  │
+│                                                                    │             │
+│                                                                    │ 5. Async    │
+│                                                                    │ Processing  │
+│                                                                    ▼             │
+│                                                    ┌──────────────────────────┐ │
+│                                                    │ Video Processing Pipeline│ │
+│                                                    │ ──────────────────────── │ │
+│                                                    │ • Transcode 144p-1080p   │ │
+│                                                    │ • Generate Thumbnails    │ │
+│                                                    │ • Codec validation       │ │
+│                                                    │ • Malware scan           │ │
+│                                                    │ • Content ID check       │ │
+│                                                    └───────────┬──────────────┘ │
+│                                                                │                 │
+│                                                                │ 6. Renditions   │
+│                                                                │    & Thumbnails │
+│                                                                ▼                 │
+│  ┌──────────────────┐                        ┌──────────────────────────┐      │
+│  │ Object Storage   │  7. Origin Fetch       │         CDN              │      │
+│  │ (Processed)      │ ─────────────────────▶ │  (CloudFront / Akamai)   │      │
+│  │  S3 / GCS        │                        │   Global Edge Nodes      │      │
+│  └──────────────────┘                        └──────────────────────────┘      │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-        %% Control Plane (Low QPS, metadata only)
-        subgraph CP[CONTROL PLANE]
-                A -- |1) Upload Init| --> B
-                B --> C
-                C -- |2) Session Response| --> A
-        end
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                        METADATA & STATE MANAGEMENT                              │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│         ┌─────────────┐                      ┌────────────────┐                │
+│         │ Event Queue │ ────────────────────▶│ Metadata       │                │
+│         │             │   Status Updates     │ Service        │                │
+│         └─────────────┘                      └───────┬────────┘                │
+│                                                      │                          │
+│                                                      ▼                          │
+│                                              ┌────────────────┐                 │
+│                                              │ Metadata DB    │                 │
+│                                              │ (SQL/NoSQL)    │                 │
+│                                              │ - Upload status│                 │
+│                                              │ - Video info   │                 │
+│                                              │ - User data    │                 │
+│                                              └────────────────┘                 │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 
-        %% Data Plane (High throughput bytes)
-        subgraph DP[DATA PLANE]
-                A -- |3) Multipart Upload + Resume| --> D
-                D -- |4) Upload Complete Event| --> E
-                E -- |5) Async Processing| --> F
-                F -- |6) Renditions + Thumbnails| --> G
-                G -- |7) Origin Fetch| --> H
-        end
-
-        %% Metadata & State
-        E --> M
-        M --> N
-
-        %% Failure Handling
-        E -. retries .-> E
-        E -. DLQ .-> X
-        X --> Y
-
-        %% Styles (optional)
-        classDef plane fill:#eef,stroke:#88a,stroke-width:1px;
-        classDef storage fill:#efe,stroke:#8a8,stroke-width:1px;
-        classDef process fill:#fee,stroke:#a88,stroke-width:1px;
-        class A,B,C,CP plane;
-        class D,G storage;
-        class F process;
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                           FAILURE HANDLING                                      │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│         ┌─────────────┐                                                         │
+│         │ Event Queue │ ◀───── retries ─────┐                                  │
+│         │             │                      │                                  │
+│         └──────┬──────┘                      │                                  │
+│                │                             │                                  │
+│                │ (max retries exceeded)      │                                  │
+│                ▼                                                                │
+│         ┌──────────────────┐                                                    │
+│         │ Dead Letter Queue│                                                    │
+│         │      (DLQ)       │                                                    │
+│         └────────┬─────────┘                                                    │
+│                  │                                                              │
+│                  ▼                                                              │
+│         ┌──────────────────┐                                                    │
+│         │ Alerts + Manual  │                                                    │
+│         │   Operations     │                                                    │
+│         │  - PagerDuty     │                                                    │
+│         │  - Slack alerts  │                                                    │
+│         └──────────────────┘                                                    │
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Optional: Multipart Upload Sequence
-Paste into Mermaid Live Editor as a second diagram.
+### Multipart Upload Sequence Flow
 
-```mermaid
-sequenceDiagram
-        autonumber
-        participant Client
-        participant API as API Gateway
-        participant Upload as Upload Service
-        participant Store as Object Storage
-        Client->>API: Init Upload (auth)
-        API->>Upload: Create Session
-        Upload-->>Client: uploadId + presigned part URLs
-        loop Parts
-                Client->>Store: PUT part (presigned)
-        end
-        Client->>Store: Complete multipart
-        Store-->>Upload: Upload Complete Event
-        Upload->>Queue: Enqueue processing (uploadId)
+```
+┌────────┐          ┌────────────┐       ┌─────────────┐       ┌──────────────┐
+│ Client │          │    API     │       │   Upload    │       │   Object     │
+│        │          │  Gateway   │       │   Service   │       │   Storage    │
+└───┬────┘          └─────┬──────┘       └──────┬──────┘       └──────┬───────┘
+    │                     │                     │                      │
+    │ 1. Init Upload      │                     │                      │
+    │    (with auth)      │                     │                      │
+    ├────────────────────▶│                     │                      │
+    │                     │                     │                      │
+    │                     │ 2. Create Session   │                      │
+    │                     ├────────────────────▶│                      │
+    │                     │                     │                      │
+    │                     │                     │ 3. Generate presigned│
+    │                     │                     │    URLs + uploadId   │
+    │ 4. Session Response │                     │                      │
+    │    (uploadId +      │◀────────────────────┤                      │
+    │     part URLs)      │                     │                      │
+    │◀────────────────────┤                     │                      │
+    │                     │                     │                      │
+    │ ╔═══════════════════════════════════════════════════════════════╗│
+    │ ║              5. Upload Parts (Loop)                          ║│
+    │ ║  ┌──────────────────────────────────────────────────────────┐║│
+    │ ║  │ For each part:                                           │║│
+    │ ║  │ PUT /part1 (presigned URL) ────────────────────────────▶ │║│
+    │ ║  │ PUT /part2 (presigned URL) ────────────────────────────▶ │║│
+    │ ║  │ PUT /partN (presigned URL) ────────────────────────────▶ │║│
+    │ ║  │                                                           │║│
+    │ ║  │ Note: Client can resume from any failed part             │║│
+    │ ║  └──────────────────────────────────────────────────────────┘║│
+    │ ╚═══════════════════════════════════════════════════════════════╝│
+    │                     │                     │                      │
+    │ 6. Complete         │                     │                      │
+    │    Multipart        │                     │                      │
+    ├──────────────────────────────────────────────────────────────────▶
+    │                     │                     │                      │
+    │                     │                     │ 7. Upload Complete   │
+    │                     │                     │    Event (uploadId)  │
+    │                     │                     │◀─────────────────────┤
+    │                     │                     │                      │
+    │                     │                     │ 8. Enqueue Processing│
+    │                     │                     │    (to Kafka/SQS)    │
+    │                     │                     ├────────────────────▶ Queue
+    │                     │                     │                      │
+    │ 9. Success Response │                     │                      │
+    │◀────────────────────┴─────────────────────┤                      │
+    │                                           │                      │
 ```
 
 ### Talking Points (use with the diagram)
@@ -87,100 +175,204 @@ sequenceDiagram
 - PlantUML Editor: code-first diagrams; good for sequence/state diagrams.
 - Miro or Figma: collaborative boards; polished visual styling.
 
-## Demo Architecture Diagram (Mermaid)
-Use for live demos; horizontally grouped lanes with minimal text.
+## Demo Architecture - Horizontally Grouped Lanes
 
-```mermaid
-flowchart LR
-        %% Lanes
-        subgraph Client[Client]
-                A[Web/App]
-        end
-        subgraph Control[Control Plane\n(low QPS)]
-                B[API Gateway\nAuth + Rate Limit]
-                C[Upload Service\nStateless]
-                M[Metadata Service]
-                N[(Metadata DB)\nSQL]
-        end
-        subgraph Data[Data Plane\n(high throughput)]
-                D[(Object Storage)\nRaw]
-                G[(Object Storage)\nProcessed]
-                H[CDN]
-        end
-        subgraph Async[Async Pipeline]
-                E[Event Queue\nKafka/SQS]
-                F[Workers\nTranscode, Scan, Content ID]
-                X[Dead Letter Queue]
-                Y[Alerts + Manual Ops]
-        end
+```
+┌──────────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                      │
+│  CLIENT LAYER                                                                        │
+│  ┌──────────────┐                                                                    │
+│  │   Web / App  │                                                                    │
+│  │   (Browser   │                                                                    │
+│  │    Mobile)   │                                                                    │
+│  └──────┬───────┘                                                                    │
+│         │                                                                            │
+└─────────┼────────────────────────────────────────────────────────────────────────────┘
+          │
+┌─────────┼────────────────────────────────────────────────────────────────────────────┐
+│         │    CONTROL PLANE (Low QPS)                                                 │
+│         │                                                                            │
+│         │  Init Request                                                              │
+│         ├──────────────▶ ┌─────────────────┐                                        │
+│         │                │   API Gateway   │                                        │
+│         │                │  Auth + Rate    │                                        │
+│         │                │    Limiting     │                                        │
+│         │                └────────┬────────┘                                        │
+│         │                         │                                                 │
+│         │                         ▼                                                 │
+│         │                ┌─────────────────┐         ┌──────────────────┐          │
+│         │◀───────────────┤ Upload Service  │────────▶│ Metadata Service │          │
+│         │  Session Info  │   (Stateless)   │ Updates │                  │          │
+│         │  uploadId+URLs └─────────────────┘         └─────────┬────────┘          │
+│         │                                                       │                   │
+│         │                                             ┌─────────▼─────────┐         │
+│         │                                             │   Metadata DB     │         │
+│         │                                             │  (SQL/NoSQL)      │         │
+│         │                                             └───────────────────┘         │
+│         │                                                                           │
+└─────────┼───────────────────────────────────────────────────────────────────────────┘
+          │
+┌─────────┼───────────────────────────────────────────────────────────────────────────┐
+│         │    DATA PLANE (High Throughput)                                           │
+│         │                                                                            │
+│         │  Multipart PUT                                                             │
+│         ├─────────────────────────▶ ┌───────────────────┐                           │
+│         │                           │  Object Storage   │                           │
+│         │                           │   (Raw Videos)    │                           │
+│         │                           └─────────┬─────────┘                           │
+│         │                                     │                                     │
+│         │                                     │ Complete Event                      │
+│         │                                     ▼                                     │
+│         │                           ┌───────────────────┐                           │
+│         │                           │  Object Storage   │                           │
+│         │                           │  (Processed)      │                           │
+│         │                           └─────────┬─────────┘                           │
+│         │                                     │                                     │
+│         │                                     │ Origin Fetch                        │
+│         │                                     ▼                                     │
+│         │                           ┌───────────────────┐                           │
+│         │◀──────────────────────────┤       CDN         │                           │
+│         │   Video Stream            │ (CloudFront)      │                           │
+│         │                           └───────────────────┘                           │
+│         │                                                                           │
+└─────────┼───────────────────────────────────────────────────────────────────────────┘
+          │
+┌─────────┼───────────────────────────────────────────────────────────────────────────┐
+│         │    ASYNC PROCESSING PIPELINE                                              │
+│         │                                                                            │
+│         │                           ┌───────────────────┐                           │
+│         │                           │   Event Queue     │                           │
+│         │                           │   Kafka / SQS     │                           │
+│         │                           └─────────┬─────────┘                           │
+│         │                                     │                                     │
+│         │                                     ▼                                     │
+│         │                           ┌───────────────────┐                           │
+│         │                           │     Workers       │                           │
+│         │                           │  ───────────────  │                           │
+│         │                           │  • Transcode      │                           │
+│         │                           │  • Scan           │                           │
+│         │                           │  • Content ID     │                           │
+│         │                           └─────────┬─────────┘                           │
+│         │                                     │                                     │
+│         │                                     │ Success                             │
+│         │                                     ├────────────▶ [Processed Storage]    │
+│         │                                     │                                     │
+│         │                                     │ Failure                             │
+│         │                                     ├────────────▶ ┌──────────────────┐  │
+│         │                                     │              │ Dead Letter Queue│  │
+│         │                                     │              └────────┬─────────┘  │
+│         │                                     │                       │            │
+│         │                                     │                       ▼            │
+│         │                                     │              ┌──────────────────┐  │
+│         │                                     │              │ Alerts + Manual  │  │
+│         │                                     │              │   Operations     │  │
+│         │                                     │              └──────────────────┘  │
+│         │                                     │                                     │
+└─────────┴─────────────────────────────────────────────────────────────────────────────┘
 
-        %% Flow
-        A -- Init --> B
-        B --> C
-        C -- Session (uploadId + URLs) --> A
-        A -- Multipart PUT --> D
-        D -- Complete Event --> E
-        E --> F
-        F -- Renditions/Thumbs --> G
-        G -- Origin Fetch --> H
-
-        %% Metadata & Failure
-        F --> M
-        M --> N
-        F -. failure .-> X
-        X --> Y
-
-        %% Styles
-        classDef lane fill:#f8f8ff,stroke:#9aa,stroke-width:1px;
-        classDef store fill:#eefcef,stroke:#8a8,stroke-width:1px;
-        classDef work fill:#fff0f0,stroke:#a88,stroke-width:1px;
-        class Client,Control,Data,Async lane;
-        class D,G store;
-        class F work;
+KEY FEATURES:
+• Control vs Data Plane separation: metadata (low-QPS) vs bytes (direct to storage via presigned URLs)
+• Idempotency via uploadId and deterministic object keys for safe retries
+• Eventual consistency: reconcile via processing events + status updates in SQL
+• Backpressure: autoscale consumers on queue lag; API rate limits protect control plane
+• Failure handling: bounded retries → DLQ → alerts and manual ops
 ```
 
-## Demo Sequence Diagram (Mermaid)
-Includes retries, resume, and success/failure branches.
+## Complete Processing Sequence with Retries & Failure Handling
 
-```mermaid
-sequenceDiagram
-        autonumber
-        participant Client
-        participant APIGW as API Gateway
-        participant Upload as Upload Service
-        participant Store as Object Storage
-        participant Queue as Event Queue
-        participant Worker as Processing Worker
-        participant Meta as Metadata Service
-        participant CDN
+```
+Client   APIGW    Upload   Storage   Queue    Worker    Meta     CDN
+  │       │         │         │        │        │        │        │
+  │       │         │         │        │        │        │        │
+  │ 1. Init Upload  │         │        │        │        │        │
+  │   (auth)        │         │        │        │        │        │
+  ├──────────────▶  │         │        │        │        │        │
+  │       │         │         │        │        │        │        │
+  │       │ 2. Create Session │        │        │        │        │
+  │       ├─────────────────▶ │        │        │        │        │
+  │       │         │         │        │        │        │        │
+  │       │         │ 3. Response      │        │        │        │
+  │       │         │   uploadId+URLs  │        │        │        │
+  │◀──────┴─────────┴─────────┤        │        │        │        │
+  │                           │        │        │        │        │
+  │                           │        │        │        │        │
+  │ ╔════════════════════════════════════════════════════════════╗│
+  │ ║  4. Upload Parts (Loop)                                   ║│
+  │ ║  ┌────────────────────────────────────────────────────┐   ║│
+  │ ║  │ PUT part1 (presigned) ───────────────────────────▶ │   ║│
+  │ ║  │ PUT part2 (presigned) ───────────────────────────▶ │   ║│
+  │ ║  │ PUT partN (presigned) ───────────────────────────▶ │   ║│
+  │ ║  │                                                     │   ║│
+  │ ║  │ Note: Resume supported via part numbers            │   ║│
+  │ ║  └────────────────────────────────────────────────────┘   ║│
+  │ ╚════════════════════════════════════════════════════════════╝│
+  │                           │        │        │        │        │
+  │ 5. Complete Multipart     │        │        │        │        │
+  ├───────────────────────────▶        │        │        │        │
+  │                           │        │        │        │        │
+  │                           │ 6. Upload Complete Event  │        │
+  │                           │        │  (uploadId)      │        │
+  │                           ├────────────────▶│        │        │
+  │                           │        │        │        │        │
+  │                           │        │ 7. Consume (uploadId)     │
+  │                           │        │        │        │        │
+  │                           │        │        ├───────▶│        │
+  │                           │        │        │        │        │
+  │                           │        │        │ ╔══════╧═══════════════════╗
+  │                           │        │        │ ║  PARALLEL PROCESSING     ║
+  │                           │        │        │ ╠════════════════════════════
+  │                           │        │        │ ║                          ║
+  │                           │        │        │ ║ 8a. Transcode            ║
+  │                           │        │        │ ║     144p, 360p, 720p,    ║
+  │                           │ 8a. Write renditions      1080p               ║
+  │                           │◀───────────────────────────┤                  ║
+  │                           │        │        │ ║                          ║
+  │                           │        │        │ ║ 8b. Generate             ║
+  │                           │        │        │ ║     Thumbnails           ║
+  │                           │◀───────────────────────────┤                  ║
+  │                           │        │        │ ║                          ║
+  │                           │        │        │ ║ 8c. Update Metadata      ║
+  │                           │        │        │ ║     status: PROCESSING   ║
+  │                           │        │        │ ║     → READY              ║
+  │                           │        │        │        ├─────────────────▶  │
+  │                           │        │        │ ║                      (Metadata DB)
+  │                           │        │        │ ║                          ║
+  │                           │        │        │ ╚══════════════════════════╝
+  │                           │        │        │        │        │        │
+  │                           │        │        │        │        │        │
+  │                           │        │        │    ┌───┴────────┴────┐   │
+  │                           │        │        │    │   SUCCESS?      │   │
+  │                           │        │        │    └───┬────────┬────┘   │
+  │                           │        │        │        │        │        │
+  │                           │        │        │     YES│     NO │        │
+  │                           │        │        │        │        │        │
+  │                           │        │        │        ▼        ▼        │
+  │                           │        │        │   ┌─────────┐ ┌─────────┐
+  │                           │        │        │   │ 9. Warm │ │  DLQ    │
+  │                           │        │        │   │   CDN   │ │ (reason)│
+  │                           │        │        │   │  Cache  │ └────┬────┘
+  │                           │        │        │   └────┬────┘      │
+  │                           │        │        │        │           │
+  │                           │        │        │        │           ▼
+  │                           │◀────────────────────────┬┘    ┌───────────┐
+  │                           │  First fetch / Origin   │     │  Alerts   │
+  │                           │        │        │       │     │  + Manual │
+  │                           │        │        │       │     │    Ops    │
+  │                           │        │        │       │     └───────────┘
+  │                           │        │        │       │
+  │                           │        │        │   10. Meta: READY
+  │                           │        │        │       ├──────────────────▶
+  │                           │        │        │       │            (status)
+  │                           │        │        │       │
+  │                           │        │        │       │
+```
 
-        Client->>APIGW: Init Upload (auth)
-        APIGW->>Upload: Create Session
-        Upload-->>Client: uploadId + presigned part URLs
-
-        loop Parts
-                Client->>Store: PUT part (presigned)
-                note right of Client: Resume supported via part numbers
-        end
-        Client->>Store: Complete multipart
-        Store-->>Queue: Upload Complete Event (uploadId)
-
-        Queue->>Worker: Consume (uploadId)
-        par Transcoding
-                Worker->>Store: Write renditions (144p–1080p)
-        and Thumbnails
-                Worker->>Store: Write thumbnails
-        and Metadata
-                Worker->>Meta: status PROCESSING → READY
-        end
-
-        alt Processing failure
-                Worker->>Queue: DLQ (reason)
-                Meta->>Meta: status FAILED
-        else Success
-                Worker-->>CDN: Origin warm / first fetch
-                Meta->>Meta: status READY
-        end
+### Key Insights:
+- uploadId acts as the thread of traceability across all systems
+- Parallel processing (transcoding, thumbnails, metadata) improves speed
+- Failure path: bounded retries → DLQ → alerts and manual operations
+- CDN warming on first fetch ensures optimal delivery performance
+- Idempotency checks prevent duplicate processing even on retries
 ```
 
 ### Demo Tips

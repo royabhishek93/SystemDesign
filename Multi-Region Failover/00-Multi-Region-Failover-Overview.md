@@ -123,5 +123,124 @@ Cons:
 - Runbooks for manual failover
 - Data consistency validation
 
-## 7) Quick Interview Answer (30 seconds)
+## 7) Architecture Diagram
+
+### Multi-Region Failover - Active-Active Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                    MULTI-REGION FAILOVER SYSTEM                        │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│                     ┌──────────────────┐                              │
+│                     │     Client       │                              │
+│                     └────────┬─────────┘                              │
+│                              │                                        │
+│                              ▼                                        │
+│                  ┌───────────────────────┐                            │
+│                  │  Global Load Balancer  │                           │
+│                  │  / DNS (Route 53)      │                           │
+│                  │  Health Check Based    │                           │
+│                  └──────────┬────────────┘                            │
+│                             │                                         │
+│              ┌──────────────┴──────────────┐                          │
+│              │                             │                          │
+│              ▼                             ▼                          │
+│   ┌──────────────────────┐     ┌──────────────────────┐              │
+│   │     REGION 1         │     │     REGION 2         │              │
+│   │    (US-EAST)         │     │    (US-WEST)         │              │
+│   │                      │     │                      │              │
+│   │  ┌────────────────┐  │     │  ┌────────────────┐  │              │
+│   │  │ App Servers    │  │     │  │ App Servers    │  │              │
+│   │  │ Load Balanced  │  │     │  │ Load Balanced  │  │              │
+│   │  └───────┬────────┘  │     │  └───────┬────────┘  │              │
+│   │          │            │     │          │            │              │
+│   │          ▼            │     │          ▼            │              │
+│   │  ┌────────────────┐  │     │  ┌────────────────┐  │              │
+│   │  │  DB Primary    │◀─┼─────┼─▶│  DB Replica    │  │              │
+│   │  │  (Read/Write)  │  │     │  │  or Primary    │  │              │
+│   │  └────────────────┘  │     │  │  (Read/Write)  │  │              │
+│   │                      │     │  └────────────────┘  │              │
+│   │  ┌────────────────┐  │     │  ┌────────────────┐  │              │
+│   │  │  Cache Layer   │  │     │  │  Cache Layer   │  │              │
+│   │  │  (Redis)       │  │     │  │  (Redis)       │  │              │
+│   │  └────────────────┘  │     │  └────────────────┘  │              │
+│   │                      │     │                      │              │
+│   └──────────────────────┘     └──────────────────────┘              │
+│              │                             │                          │
+│              │  ←─── Replication ────────▶ │                          │
+│              │  (DB, Cache, Queue)         │                          │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────┐         │
+│  │  KEY FEATURES:                                           │         │
+│  │  • Health checks detect failures (10-30s)                │         │
+│  │  • Automatic traffic shift on failure                    │         │
+│  │  • Data replication with lag monitoring                  │         │
+│  │  • Both regions serve traffic simultaneously             │         │
+│  │  • RTO: 15-60s, RPO: Near-zero with sync replication    │         │
+│  └──────────────────────────────────────────────────────────┘         │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Active-Passive (Warm Standby) Architecture
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                  ACTIVE-PASSIVE FAILOVER SYSTEM                        │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                        │
+│                     ┌──────────────────┐                              │
+│                     │     Client       │                              │
+│                     └────────┬─────────┘                              │
+│                              │                                        │
+│                              ▼                                        │
+│                  ┌───────────────────────┐                            │
+│                  │  DNS / Global LB      │                            │
+│                  │  (Points to PRIMARY)  │                            │
+│                  └──────────┬────────────┘                            │
+│                             │                                         │
+│                             ▼                                         │
+│   ┌──────────────────────────────────────────────────────┐            │
+│   │     PRIMARY REGION (ACTIVE)                          │            │
+│   │                                                      │            │
+│   │  ┌────────────────┐                                 │            │
+│   │  │ App Servers    │  ← ALL TRAFFIC                  │            │
+│   │  │ (Running)      │                                 │            │
+│   │  └───────┬────────┘                                 │            │
+│   │          │                                           │            │
+│   │          ▼                                           │            │
+│   │  ┌────────────────┐                                 │            │
+│   │  │  DB Primary    │                                 │            │
+│   │  │  (Read/Write)  │                                 │            │
+│   │  └────────┬───────┘                                 │            │
+│   └───────────┼───────────────────────────────────────────           │
+│               │                                                       │
+│               │ Replication (Async)                                  │
+│               ▼                                                       │
+│   ┌───────────────────────────────────────────────────────┐          │
+│   │     STANDBY REGION (PASSIVE)                          │          │
+│   │                                                       │          │
+│   │  ┌────────────────┐                                  │          │
+│   │  │ App Servers    │  ← IDLE / WARM                   │          │
+│   │  │ (Minimal scale)│                                  │          │
+│   │  └────────────────┘                                  │          │
+│   │                                                       │          │
+│   │  ┌────────────────┐                                  │          │
+│   │  │  DB Replica    │                                  │          │
+│   │  │  (Read-only)   │  ← Receives replication          │          │
+│   │  └────────────────┘                                  │          │
+│   │                                                       │          │
+│   │  On Failure:                                         │          │
+│   │  1. Promote DB Replica to Primary                    │          │
+│   │  2. Scale up App Servers                             │          │
+│   │  3. Update DNS to point here                         │          │
+│   │  RTO: 2-10 minutes                                   │          │
+│   │                                                       │          │
+│   └───────────────────────────────────────────────────────┘          │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+## 8) Quick Interview Answer (30 seconds)
 "Multi-region failover keeps the system up if a region goes down. Options include active-active, active-passive, and warm/cold standby. A global load balancer or DNS can shift traffic, but the data layer must also replicate. The right choice depends on RTO/RPO, consistency, and cost."
